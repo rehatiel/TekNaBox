@@ -141,6 +141,12 @@ export const api = {
   createMonitorTarget: (body) => post('/v1/monitoring/targets', body),
   deleteMonitorTarget: (id) => del(`/v1/monitoring/targets/${id}`),
 
+  // ── Network Device History ────────────────────────────────────────────────
+  getDiscoveredDevices:    ()              => get('/v1/network/discovered-devices'),
+  toggleDeviceKnown:       (mac)           => patch(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/known`, {}),
+  setDeviceLabel:          (mac, label)    => patch(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/label`, { label }),
+  deleteDiscoveredDevice:  (mac)           => del(`/v1/network/discovered-devices/${encodeURIComponent(mac)}`),
+
   // ── Generic helpers ───────────────────────────────────────────────────────
   get:    (path) => get(path),
   post:   (path, body) => post(path, body),

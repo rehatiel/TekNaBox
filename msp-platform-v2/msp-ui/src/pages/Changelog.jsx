@@ -5,6 +5,49 @@ import { GitBranch, Shield, Bug, Sparkles, Wrench } from 'lucide-react'
 
 const RELEASES = [
   {
+    version: '3.3.0',
+    date: '2026-03-14',
+    summary: 'Network Device History, scan state persistence, hide background scans in Reports, interface auto-detection',
+    entries: [
+      {
+        type: 'feature',
+        text: 'New Device History page (/network-history): persistent server-side record of every device ever seen in network discovery scans. Displays MAC, IP, vendor, first-seen, last-seen, and known/unknown status. Updated automatically while background monitoring is active — no re-scan needed to view history.',
+      },
+      {
+        type: 'feature',
+        text: 'Device History: one-click known/unknown toggle per device. Inline label editor lets operators assign a friendly name to any device (click the — to edit, Enter to save, Escape to cancel).',
+      },
+      {
+        type: 'feature',
+        text: 'Device History: search by IP, MAC, vendor, or label. Filter toggles to show/hide known and unknown devices independently. Stats row shows total, known, and unknown counts.',
+      },
+      {
+        type: 'feature',
+        text: 'New DiscoveredDevice database model and migration 0006. One row per MAC per MSP with first_seen, last_seen, ip, vendor, hostname, label, and known fields. Upserted on every completed ARP scan.',
+      },
+      {
+        type: 'feature',
+        text: 'Network Discovery scan running state now persists across page refreshes. Active monitoring settings (agent, interface, interval) are saved to localStorage and the scan loop automatically resumes on page reload — the page no longer shows "not running" after a refresh.',
+      },
+      {
+        type: 'feature',
+        text: 'Reports page: new "Hide background scans" checkbox in the filter bar, enabled by default. Background monitoring ARP scans are tagged with _auto: true in their task payload and filtered out automatically, keeping the Reports list clean for manual scans.',
+      },
+      {
+        type: 'feature',
+        text: 'Network Discovery: interface auto-detection from the agent\'s most recent sysinfo result. A dropdown showing interface name and IP address replaces the manual text input when sysinfo data is available. Falls back to a plain text field if no sysinfo exists.',
+      },
+      {
+        type: 'feature',
+        text: 'Network Discovery diagram is now fully interactive: scroll to zoom, drag to pan, click any node for a detail panel showing IP, MAC, vendor, first/last seen, and mark-known/remove actions.',
+      },
+      {
+        type: 'change',
+        text: 'New backend endpoints: POST /v1/network/discovered-devices (batch upsert), GET /v1/network/discovered-devices (list), PATCH /v1/network/discovered-devices/{mac}/known (toggle), PATCH /v1/network/discovered-devices/{mac}/label (set label), DELETE /v1/network/discovered-devices/{mac} (remove).',
+      },
+    ],
+  },
+  {
     version: '3.2.0',
     date: '2026-03-09',
     summary: 'AD Report — vertical nav, DHCP fix, GPO detail parsing, new sections',

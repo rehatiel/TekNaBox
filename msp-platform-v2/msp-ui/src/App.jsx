@@ -17,6 +17,7 @@ import ChangelogPage from './pages/Changelog'
 import WirelessSurveyPage from './pages/WirelessSurvey'
 import SecurityHubPage from './pages/SecurityHub'
 import NetworkDiscoveryPage from './pages/NetworkDiscovery'
+import NetworkDeviceHistoryPage from './pages/NetworkDeviceHistory'
 import NetworkToolsPage from './pages/NetworkTools'
 
 function ProtectedLayout() {
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="/wireless"              element={<WirelessSurveyPage />} />
             <Route path="/security"              element={<SecurityHubPage />} />
             <Route path="/network"               element={<NetworkDiscoveryPage />} />
+            <Route path="/network-history"       element={<NetworkDeviceHistoryPage />} />
             <Route path="/network-tools"         element={<NetworkToolsPage />} />
             <Route path="/customers"  element={<Customers />} />
             <Route path="/sites"      element={<Sites />} />

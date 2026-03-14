@@ -4,7 +4,7 @@ All endpoints require operator JWT. Tenant isolation enforced at query level.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone  # noqa: F401 (timezone used in network endpoints)
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from slowapi import Limiter
@@ -27,6 +27,7 @@ from app.models.models import (
     MSPOrganization, CustomerOrganization, Site, Device, DeviceStatus,
     DeviceRole, Task, TaskStatus, Operator, OperatorRole,
     ClientRelease, UpdatePolicy, DeviceUpdateJob, UpdateStatus, AuditAction,
+    DiscoveredDevice,
 )
 from app.services.audit import write_audit
 
@@ -661,6 +662,151 @@ async def get_audit_logs(
         }
         for l in logs
     ]
+
+
+# ── Network Device History ────────────────────────────────────────────────────
+
+class UpsertDeviceEntry(BaseModel):
+    mac: str
+    ip: Optional[str] = None
+    vendor: Optional[str] = None
+    hostname: Optional[str] = None
+
+class UpsertDiscoveredDevicesRequest(BaseModel):
+    device_id: str          # the agent that ran the scan
+    devices: list[UpsertDeviceEntry]
+
+
+@router.post("/network/discovered-devices")
+async def upsert_discovered_devices(
+    body: UpsertDiscoveredDevicesRequest,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upsert batch of discovered devices from an ARP/network scan result."""
+    now = datetime.now(timezone.utc)
+    for entry in body.devices:
+        mac = entry.mac.lower().strip()
+        if not mac:
+            continue
+        existing = (await db.execute(
+            select(DiscoveredDevice).where(
+                and_(DiscoveredDevice.msp_id == operator.msp_id,
+                     DiscoveredDevice.mac == mac)
+            )
+        )).scalar_one_or_none()
+
+        if existing:
+            if entry.ip:
+                existing.ip = entry.ip
+            if entry.vendor:
+                existing.vendor = entry.vendor
+            if entry.hostname:
+                existing.hostname = entry.hostname
+            existing.source_device_id = body.device_id
+            existing.last_seen = now
+        else:
+            db.add(DiscoveredDevice(
+                msp_id=operator.msp_id,
+                source_device_id=body.device_id,
+                mac=mac,
+                ip=entry.ip,
+                vendor=entry.vendor,
+                hostname=entry.hostname,
+                known=False,
+                first_seen=now,
+                last_seen=now,
+            ))
+
+    await db.commit()
+    return {"ok": True}
+
+
+@router.get("/network/discovered-devices")
+async def list_discovered_devices(
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all discovered devices for this MSP."""
+    rows = (await db.execute(
+        select(DiscoveredDevice)
+        .where(DiscoveredDevice.msp_id == operator.msp_id)
+        .order_by(DiscoveredDevice.last_seen.desc())
+    )).scalars().all()
+    return [_discovered_device_dict(d) for d in rows]
+
+
+@router.patch("/network/discovered-devices/{mac}/known")
+async def set_device_known(
+    mac: str,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Toggle a discovered device's known status."""
+    mac = mac.lower().strip()
+    device = (await db.execute(
+        select(DiscoveredDevice).where(
+            and_(DiscoveredDevice.msp_id == operator.msp_id,
+                 DiscoveredDevice.mac == mac)
+        )
+    )).scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    device.known = not device.known
+    await db.commit()
+    return _discovered_device_dict(device)
+
+
+@router.patch("/network/discovered-devices/{mac}/label")
+async def set_device_label(
+    mac: str,
+    body: dict,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set an operator label on a discovered device."""
+    mac = mac.lower().strip()
+    device = (await db.execute(
+        select(DiscoveredDevice).where(
+            and_(DiscoveredDevice.msp_id == operator.msp_id,
+                 DiscoveredDevice.mac == mac)
+        )
+    )).scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    device.label = body.get("label") or None
+    await db.commit()
+    return _discovered_device_dict(device)
+
+
+@router.delete("/network/discovered-devices/{mac}")
+async def delete_discovered_device(
+    mac: str,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove a device from the history."""
+    mac = mac.lower().strip()
+    device = (await db.execute(
+        select(DiscoveredDevice).where(
+            and_(DiscoveredDevice.msp_id == operator.msp_id,
+                 DiscoveredDevice.mac == mac)
+        )
+    )).scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    await db.delete(device)
+    await db.commit()
+    return {"ok": True}
+
+
+def _discovered_device_dict(d: DiscoveredDevice) -> dict:
+    return {
+        "id": d.id, "mac": d.mac, "ip": d.ip, "vendor": d.vendor,
+        "hostname": d.hostname, "label": d.label, "known": d.known,
+        "source_device_id": d.source_device_id,
+        "first_seen": d.first_seen, "last_seen": d.last_seen,
+    }
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

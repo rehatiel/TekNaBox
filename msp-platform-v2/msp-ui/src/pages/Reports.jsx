@@ -1543,10 +1543,11 @@ export default function ReportsPage() {
   const [expandedId, setExpandedId] = useState(null)
 
   // Filters
-  const [filterCustomer, setFilterCustomer] = useState(searchParams.get('customer') || '')
-  const [filterSite, setFilterSite]         = useState(searchParams.get('site') || '')
-  const [filterDevice, setFilterDevice]     = useState(searchParams.get('device') || '')
-  const [filterType, setFilterType]         = useState(searchParams.get('type') || '')
+  const [filterCustomer,  setFilterCustomer]  = useState(searchParams.get('customer') || '')
+  const [filterSite,      setFilterSite]      = useState(searchParams.get('site') || '')
+  const [filterDevice,    setFilterDevice]    = useState(searchParams.get('device') || '')
+  const [filterType,      setFilterType]      = useState(searchParams.get('type') || '')
+  const [hideBackground,  setHideBackground]  = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1599,6 +1600,7 @@ export default function ReportsPage() {
     const dev = deviceById(t.device_id)
     if (filterCustomer && dev?.customer_id !== filterCustomer) return false
     if (filterSite     && dev?.site_id     !== filterSite)     return false
+    if (hideBackground && t.payload?._auto) return false
     return true
   })
 
@@ -1670,6 +1672,16 @@ export default function ReportsPage() {
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
         </select>
+
+        <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer select-none ml-auto">
+          <input
+            type="checkbox"
+            checked={hideBackground}
+            onChange={e => setHideBackground(e.target.checked)}
+            className="accent-cyan-500 w-3 h-3"
+          />
+          Hide background scans
+        </label>
 
         {hasFilters && (
           <button

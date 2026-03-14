@@ -256,6 +256,32 @@ class Telemetry(Base):
     )
 
 
+# ── Network Device History ────────────────────────────────────────────────────
+
+class DiscoveredDevice(Base):
+    """Persistent record of every device ever seen in network scans."""
+    __tablename__ = "discovered_devices"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=new_uuid)
+    msp_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("msp_organizations.id"), nullable=False)
+    source_device_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("devices.id"))
+
+    mac: Mapped[str] = mapped_column(String(17), nullable=False)   # e.g. aa:bb:cc:dd:ee:ff
+    ip: Mapped[Optional[str]] = mapped_column(String(45))           # last known IP (IPv4/IPv6)
+    vendor: Mapped[Optional[str]] = mapped_column(String(128))
+    hostname: Mapped[Optional[str]] = mapped_column(String(255))
+    label: Mapped[Optional[str]] = mapped_column(String(128))       # operator-assigned friendly name
+
+    known: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("msp_id", "mac", name="uq_discovered_device_msp_mac"),
+        Index("ix_discovered_device_msp", "msp_id"),
+    )
+
+
 # ── Client Releases & Updates ─────────────────────────────────────────────────
 
 class ClientRelease(Base):

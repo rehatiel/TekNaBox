@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth'
 import {
   LayoutDashboard, Monitor, CheckSquare, Users,
   Building2, MapPin, PackageOpen, ScrollText,
-  LogOut, Radio, ChevronRight, Activity, UserCog, ShieldAlert, ShieldCheck, Wifi, FileText, BookOpen, Network, BookMarked, Wrench
+  LogOut, Radio, ChevronRight, Activity, UserCog, ShieldAlert, ShieldCheck, Wifi, FileText, BookOpen, Network, BookMarked, Wrench, History
 } from 'lucide-react'
 
 // Shown to all authenticated users
@@ -14,8 +14,9 @@ const NAV = [
   { to: '/monitoring', icon: Activity,        label: 'Monitoring' },
   { to: '/findings',   icon: ShieldAlert,     label: 'Findings' },
   { to: '/security',   icon: ShieldCheck,     label: 'Security Hub' },
-  { to: '/network',    icon: Network,         label: 'Network Discovery' },
-  { to: '/network-tools', icon: Wrench,      label: 'Network Tools' },
+  { to: '/network',         icon: Network,  label: 'Network Discovery' },
+  { to: '/network-history', icon: History,  label: 'Device History' },
+  { to: '/network-tools',   icon: Wrench,   label: 'Network Tools' },
   { to: '/wireless',   icon: Radio,           label: 'Wireless Survey' },
   { to: '/snmp',       icon: Wifi,            label: 'SNMP' },
   { to: '/ad-report',  icon: BookMarked,      label: 'AD Report' },

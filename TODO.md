@@ -2,11 +2,17 @@
 
 ## Network & Scanning
 
-- [ ] **Network adapter auto-detection** — Detect available network adapters and present them as a dropdown instead of requiring manual entry for each scan type.
+- [x] **Network adapter auto-detection** — Detect available network adapters and present them as a dropdown instead of requiring manual entry for each scan type. ✓ Done
 
-- [ ] **Fix monitor module** — The monitor module is not actively pinging. Investigate and fix the ping loop.
+- [ ] **Fix monitor module** — The monitor module is not actively pinging. Investigate and fix the ping loop. *(low priority)*
 
-- [ ] **Uptime monitor not recording data** — After the bug-fix rebuild, the uptime monitor page shows no data for configured targets. Likely cause: the `customer_id` column added to the `uptime_checks` table (migration 0005) has not been applied to the live database. Run migration 0005 on the server and verify data appears in the monitoring page.
+- [ ] **Uptime monitor not recording data** — After the bug-fix rebuild, the uptime monitor page shows no data for configured targets. Likely cause: the `customer_id` column added to the `uptime_checks` table (migration 0005) has not been applied to the live database. Run migration 0005 on the server and verify data appears in the monitoring page. *(low priority)*
+
+- [x] **Network device history page** — New `DiscoveredDevice` DB table (migration 0006), backend upsert/list/label/delete endpoints, and a new `/network-history` page showing all devices with first/last seen, known toggle, label editing, and search. Auto-populated by background monitoring. ✓ Done
+
+- [x] **Persist network scan running state** — `_svc` now saves `{active, agentId, iface, interval}` to `localStorage` on start/stop and auto-resumes the loop on module init after a page refresh. ✓ Done
+
+- [x] **Hide background ARP scans in Reports** — Background monitoring scans now include `_auto: true` in the task payload. Reports page has a "Hide background scans" checkbox (on by default) that filters out those tasks. ✓ Done
 
 - [ ] **Network monitoring: persistent background service** — Convert network monitoring into a start/stop service that continues running in the background even after navigating away from the page.
 

@@ -14,7 +14,8 @@ import {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'net-discovery-known'
+const STORAGE_KEY       = 'net-discovery-known'
+const SCAN_STATE_KEY    = 'net-discovery-scan-state'
 
 const SCAN_INTERVALS = [
   { label: '30 seconds', value: 30 },
@@ -35,14 +36,29 @@ function saveKnown(known) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(known)) } catch {}
 }
 
+function loadScanState() {
+  try { return JSON.parse(localStorage.getItem(SCAN_STATE_KEY) || 'null') } catch { return null }
+}
+
+function saveScanState(state) {
+  try { localStorage.setItem(SCAN_STATE_KEY, JSON.stringify(state)) } catch {}
+}
+
+function clearScanState() {
+  try { localStorage.removeItem(SCAN_STATE_KEY) } catch {}
+}
+
 // ── Persistent monitoring service ──────────────────────────────────────────────
 // Lives at module scope — survives page navigation within the SPA.
 
+// Restore persisted scan state (survives page refresh)
+const _persistedState = loadScanState()
+
 const _svc = {
-  active:     false,
-  agentId:    '',
-  iface:      'eth0',
-  interval:   60,
+  active:     _persistedState?.active     || false,
+  agentId:    _persistedState?.agentId    || '',
+  iface:      _persistedState?.iface      || 'eth0',
+  interval:   _persistedState?.interval   || 60,
   discovered: [],
   known:      loadKnown(),
   newMacs:    new Set(),
@@ -85,6 +101,7 @@ const _svc = {
     this.interval = interval
     this.active   = true
     this.error    = null
+    saveScanState({ active: true, agentId, iface, interval })
     this._notify()
     this._loop()
   },
@@ -92,6 +109,7 @@ const _svc = {
   stop() {
     this.active     = false
     this.nextScanIn = null
+    clearScanState()
     this._notify()
   },
 
@@ -103,7 +121,7 @@ const _svc = {
     try {
       const resp   = await api.issueTask(this.agentId, {
         task_type:       'run_arp_scan',
-        payload:         { interface: this.iface, timeout: 10 },
+        payload:         { interface: this.iface, timeout: 10, _auto: true },
         timeout_seconds: 40,
       })
       const taskId = resp.task_id
@@ -143,6 +161,12 @@ const _svc = {
         this.discovered = [...map.values()]
         if (newlyFound.size > 0) this.newMacs = new Set([...this.newMacs, ...newlyFound])
         this.lastScan = now
+
+        // Persist to server history (fire-and-forget)
+        api.post('/v1/network/discovered-devices', {
+          device_id: this.agentId,
+          devices: this.discovered.map(d => ({ mac: d.mac, ip: d.ip || '', vendor: d.vendor || '' })),
+        }).catch(() => {})
       }
     } catch (e) {
       this.error = e.message || 'Scan error'
@@ -180,6 +204,12 @@ const _svc = {
     this.discovered = this.discovered.filter(d => d.mac !== mac)
     this._notify()
   },
+}
+
+// Auto-resume monitoring if it was active before the page refresh
+if (_persistedState?.active && _persistedState?.agentId) {
+  // Kick off the loop without calling start() (avoids double-saving state)
+  _svc._loop()
 }
 
 // ── Node layout ────────────────────────────────────────────────────────────────
