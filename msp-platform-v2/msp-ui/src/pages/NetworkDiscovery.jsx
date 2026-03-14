@@ -1,489 +1,595 @@
 /**
- * Network Discovery — unified launcher for network recon tasks.
- * Tasks: arp_scan, ping_sweep, netbios_scan, ntp_check, lldp_neighbors, wol
+ * Network Discovery — real-time network device scanner.
+ * Periodically issues ARP scans from a selected agent, detects new devices,
+ * and renders a live auto-updating network diagram.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '../lib/api'
 import {
-  Network, Radar, Cpu, Clock, Layers, Zap,
-  Play, ChevronDown, ChevronRight, Loader2,
-  CheckCircle, AlertTriangle, Server, Wifi,
-  Monitor, HardDrive, MapPin
+  Network, Play, Square, Loader2, CheckCircle,
+  AlertTriangle, Server, Eye, EyeOff, Trash2
 } from 'lucide-react'
 
-// ── Task definitions ──────────────────────────────────────────────────────────
+// ── Constants ──────────────────────────────────────────────────────────────────
 
-const NET_TASKS = [
-  {
-    id: 'run_arp_scan',
-    label: 'ARP Scan',
-    icon: Radar,
-    description: 'Fast Layer-2 host discovery using ARP — finds everything on the local subnet',
-    color: '#06b6d4',
-    defaultPayload: { interface: 'eth0', timeout: 10 },
-    fields: [
-      { key: 'interface', label: 'Interface', type: 'text', placeholder: 'eth0' },
-      { key: 'timeout',   label: 'Timeout (seconds)', type: 'number', min: 1, max: 60 },
-    ],
-    renderResult: ArpResult,
-  },
-  {
-    id: 'run_ping_sweep',
-    label: 'Ping Sweep',
-    icon: Radar,
-    description: 'ICMP ping across a subnet or range to find live hosts',
-    color: '#22c55e',
-    defaultPayload: { network: '', timeout: 1, concurrency: 50 },
-    fields: [
-      { key: 'network', label: 'Network (CIDR)', type: 'text', placeholder: '192.168.1.0/24' },
-      { key: 'timeout', label: 'Timeout per host (s)', type: 'number', min: 0.1, max: 5 },
-    ],
-    renderResult: PingSweepResult,
-  },
-  {
-    id: 'run_netbios_scan',
-    label: 'NetBIOS / NBNS Scan',
-    icon: Monitor,
-    description: 'Discover Windows machine names, workgroups, and domain controllers via NBNS',
-    color: '#a78bfa',
-    defaultPayload: { targets: [], timeout: 2 },
-    fields: [
-      { key: 'targets', label: 'Targets (IPs or CIDRs)', type: 'hostlist',
-        placeholder: '192.168.1.0/24' },
-      { key: 'timeout', label: 'Per-host timeout (s)', type: 'number', min: 0.5, max: 10 },
-    ],
-    renderResult: NetbiosResult,
-  },
-  {
-    id: 'run_lldp_neighbors',
-    label: 'LLDP / CDP Neighbor Discovery',
-    icon: Layers,
-    description: 'Passively capture LLDP and CDP frames to map connected switches, APs, and phones',
-    color: '#f97316',
-    defaultPayload: { interface: 'eth0', duration: 35 },
-    fields: [
-      { key: 'interface', label: 'Interface', type: 'text', placeholder: 'eth0' },
-      { key: 'duration',  label: 'Listen duration (seconds)', type: 'number', min: 10, max: 120 },
-    ],
-    renderResult: LldpResult,
-    note: 'LLDP frames are sent every 30s — set duration to at least 35s to catch one cycle.',
-  },
-  {
-    id: 'run_ntp_check',
-    label: 'NTP Sync Check',
-    icon: Clock,
-    description: 'Verify agent clock offset against public NTP servers and check local sync status',
-    color: '#eab308',
-    defaultPayload: { warn_offset_ms: 500 },
-    fields: [
-      { key: 'warn_offset_ms', label: 'Warn if offset exceeds (ms)', type: 'number', min: 10, max: 10000 },
-    ],
-    renderResult: NtpResult,
-  },
-  {
-    id: 'run_wol',
-    label: 'Wake-on-LAN',
-    icon: Zap,
-    description: 'Send magic packets to wake devices on the local subnet',
-    color: '#ec4899',
-    defaultPayload: { targets: [], count: 3 },
-    fields: [
-      { key: 'targets', label: 'MAC addresses (one per line)', type: 'hostlist',
-        placeholder: 'AA:BB:CC:DD:EE:FF\n11:22:33:44:55:66' },
-      { key: 'count', label: 'Packets per target', type: 'number', min: 1, max: 10 },
-    ],
-    renderResult: WolResult,
-  },
+const STORAGE_KEY = 'net-discovery-known'
+
+const SCAN_INTERVALS = [
+  { label: '30 seconds', value: 30 },
+  { label: '1 minute',   value: 60 },
+  { label: '2 minutes',  value: 120 },
+  { label: '5 minutes',  value: 300 },
 ]
 
-// ── Result renderers ──────────────────────────────────────────────────────────
+const sleep = ms => new Promise(r => setTimeout(r, ms))
 
-function ArpResult({ result }) {
-  const hosts = result.hosts || []
+// ── LocalStorage helpers ───────────────────────────────────────────────────────
+
+function loadKnown() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') }
+  catch { return {} }
+}
+
+function saveKnown(known) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(known)) } catch {}
+}
+
+// ── Network Diagram (SVG) ──────────────────────────────────────────────────────
+
+function getNodePositions(count) {
+  if (count === 0) return []
+  const W = 700, H = 380
+  const cx = W / 2, cy = H / 2
+
+  if (count <= 10) {
+    const r = Math.min(cx - 70, cy - 60)
+    return Array.from({ length: count }, (_, i) => {
+      const angle = (2 * Math.PI / count) * i - Math.PI / 2
+      return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) }
+    })
+  }
+
+  // Two rings for > 10 devices
+  const ring1Count = Math.ceil(count / 2)
+  const ring2Count = count - ring1Count
+  const positions = []
+  const r1 = Math.min(cx - 70, cy - 60) * 0.55
+  const r2 = Math.min(cx - 70, cy - 60)
+  for (let i = 0; i < ring1Count; i++) {
+    const a = (2 * Math.PI / ring1Count) * i - Math.PI / 2
+    positions.push({ x: cx + r1 * Math.cos(a), y: cy + r1 * Math.sin(a) })
+  }
+  for (let i = 0; i < ring2Count; i++) {
+    const a = (2 * Math.PI / ring2Count) * i - Math.PI / 2
+    positions.push({ x: cx + r2 * Math.cos(a), y: cy + r2 * Math.sin(a) })
+  }
+  return positions
+}
+
+function NetworkDiagram({ discovered, newMacs, showOffline }) {
+  const W = 700, H = 380
+  const cx = W / 2, cy = H / 2
+
+  const visible = showOffline ? discovered : discovered.filter(d => !d.offline)
+  const positions = getNodePositions(visible.length)
+
   return (
-    <div>
-      <SummaryRow items={[
-        { label: 'Hosts found', value: hosts.length },
-        { label: 'Interface', value: result.interface },
-      ]} />
-      {hosts.length > 0 && (
-        <HostTable columns={['IP', 'MAC', 'Vendor']} rows={hosts.map(h => [
-          h.ip, h.mac, h.vendor || '—'
-        ])} />
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      style={{ width: '100%', height: '100%', display: 'block' }}
+    >
+      {/* Background */}
+      <rect width={W} height={H} fill="#0a0c10" rx={8} />
+
+      {/* Grid dots */}
+      {Array.from({ length: 12 }, (_, col) =>
+        Array.from({ length: 8 }, (_, row) => (
+          <circle
+            key={`${col}-${row}`}
+            cx={(col + 1) * (W / 13)}
+            cy={(row + 1) * (H / 9)}
+            r={1}
+            fill="#1a2030"
+          />
+        ))
       )}
-    </div>
-  )
-}
 
-function PingSweepResult({ result }) {
-  const alive = (result.hosts || []).filter(h => h.alive)
-  return (
-    <div>
-      <SummaryRow items={[
-        { label: 'Total hosts', value: result.total },
-        { label: 'Alive', value: alive.length },
-        { label: 'Duration', value: `${result.duration_ms}ms` },
-      ]} />
-      {alive.length > 0 && (
-        <HostTable columns={['IP', 'RTT (ms)', 'PTR']} rows={alive.map(h => [
-          h.ip, h.rtt_ms?.toFixed(1) ?? '—', h.ptr || '—'
-        ])} />
-      )}
-    </div>
-  )
-}
-
-function NetbiosResult({ result }) {
-  const found = result.hosts_found || 0
-  return (
-    <div>
-      <SummaryRow items={[
-        { label: 'Queried', value: result.hosts_queried },
-        { label: 'Found', value: found },
-      ]} />
-      {(result.hosts || []).filter(h => h.names?.length).length > 0 && (
-        <HostTable
-          columns={['IP', 'Hostname', 'Workgroup', 'MAC', 'DC']}
-          rows={(result.hosts || []).filter(h => h.names?.length).map(h => [
-            h.ip, h.hostname || '—', h.workgroup || '—',
-            h.mac || '—',
-            h.is_dc ? '✓' : '',
-          ])}
-        />
-      )}
-    </div>
-  )
-}
-
-function LldpResult({ result }) {
-  const neighbors = result.neighbors || []
-  return (
-    <div>
-      <SummaryRow items={[
-        { label: 'Neighbors', value: neighbors.length },
-        { label: 'Interface', value: result.interface },
-        { label: 'Listen time', value: `${result.duration_s}s` },
-      ]} />
-      {neighbors.length === 0 && (
-        <div style={{ fontSize: 13, color: '#4b5563', padding: '8px 0' }}>
-          No LLDP/CDP frames received. Ensure the upstream switch has LLDP enabled.
-        </div>
-      )}
-      {neighbors.map((nb, i) => (
-        <div key={i} style={{
-          background: '#111827', border: '1px solid #1e2530', borderRadius: 8,
-          padding: '12px 16px', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4,
-        }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Layers size={14} color="#f97316" />
-            <span style={{ fontWeight: 600, color: '#e5e7eb', fontSize: 14 }}>
-              {nb.system_name || nb.device_id || 'Unknown neighbor'}
-            </span>
-            <span style={{ fontSize: 11, color: '#4b5563', fontFamily: 'JetBrains Mono, monospace' }}>{nb.protocol}</span>
-          </div>
-          {nb.port_id && <KV k="Port" v={nb.port_id} />}
-          {nb.port_description && <KV k="Port desc" v={nb.port_description} />}
-          {nb.system_description && <KV k="Description" v={nb.system_description} />}
-          {nb.mgmt_address && <KV k="Mgmt IP" v={nb.mgmt_address} />}
-          {nb.chassis_id && <KV k="Chassis ID" v={nb.chassis_id} />}
-          {nb.capabilities?.length > 0 && <KV k="Capabilities" v={nb.capabilities.join(', ')} />}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function NtpResult({ result }) {
-  const statusColor = result.status === 'ok' ? '#22c55e' : result.status === 'drifted' ? '#f97316' : '#ef4444'
-  return (
-    <div>
-      <SummaryRow items={[
-        { label: 'Status', value: result.status?.toUpperCase(), color: statusColor },
-        { label: 'Avg offset', value: result.avg_offset_ms != null ? `${result.avg_offset_ms}ms` : '—' },
-        { label: 'Warn threshold', value: `${result.warn_offset_ms}ms` },
-      ]} />
-      {result.local_sync && (
-        <div style={{ marginTop: 10 }}>
-          <div style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Local Sync</div>
-          <KV k="Synchronized" v={result.local_sync.synchronized ? 'Yes' : 'No'} />
-          {result.local_sync.source && <KV k="Source" v={result.local_sync.source} />}
-          {result.local_sync.offset_ms != null && <KV k="Offset" v={`${result.local_sync.offset_ms}ms`} />}
-        </div>
-      )}
-      {result.server_results?.length > 0 && (
-        <HostTable
-          columns={['NTP Server', 'Reachable', 'RTT (ms)', 'Offset (ms)', 'Stratum']}
-          rows={result.server_results.map(s => [
-            s.server,
-            s.reachable ? '✓' : '✗',
-            s.rtt_ms ?? '—',
-            s.offset_ms ?? '—',
-            s.stratum ?? '—',
-          ])}
-        />
-      )}
-    </div>
-  )
-}
-
-function WolResult({ result }) {
-  return (
-    <div>
-      <SummaryRow items={[
-        { label: 'Targets', value: result.targets },
-        { label: 'Sent', value: result.sent },
-      ]} />
-      <HostTable
-        columns={['MAC', 'Broadcast', 'Sent', 'Packets']}
-        rows={(result.results || []).map(r => [
-          r.mac, r.broadcast, r.sent ? '✓' : '✗', r.packets_sent ?? r.error ?? '—'
-        ])}
-      />
-    </div>
-  )
-}
-
-// ── Shared sub-components ─────────────────────────────────────────────────────
-
-function SummaryRow({ items }) {
-  return (
-    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-      {items.map((item, i) => (
-        <div key={i} style={{
-          background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-          padding: '5px 12px', display: 'flex', gap: 8, alignItems: 'baseline',
-        }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: item.color || '#e5e7eb', fontFamily: 'JetBrains Mono, monospace' }}>{item.value}</span>
-          <span style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.label}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function HostTable({ columns, rows }) {
-  return (
-    <div style={{ overflowX: 'auto', marginTop: 8 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
-        <thead>
-          <tr>
-            {columns.map(c => (
-              <th key={c} style={{ textAlign: 'left', padding: '6px 10px', color: '#4b5563', borderBottom: '1px solid #1e2530', fontWeight: 600, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em' }}>{c}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} style={{ borderBottom: '1px solid #111827' }}>
-              {row.map((cell, j) => (
-                <td key={j} style={{ padding: '7px 10px', color: '#9ca3af' }}>{cell}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function KV({ k, v }) {
-  return (
-    <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-      <span style={{ color: '#4b5563', minWidth: 100, fontFamily: 'JetBrains Mono, monospace' }}>{k}</span>
-      <span style={{ color: '#9ca3af', fontFamily: 'JetBrains Mono, monospace', wordBreak: 'break-all' }}>{v}</span>
-    </div>
-  )
-}
-
-// ── Payload form ──────────────────────────────────────────────────────────────
-
-function PayloadForm({ task, payload, onChange }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {task.fields.map(f => {
-        if (f.type === 'hostlist') return (
-          <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
-            <textarea
-              rows={3}
-              placeholder={f.placeholder}
-              value={Array.isArray(payload[f.key]) ? payload[f.key].join('\n') : payload[f.key] || ''}
-              onChange={e => onChange({ ...payload, [f.key]: e.target.value.split('\n').map(s => s.trim()).filter(Boolean) })}
-              style={{ background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6, color: '#e5e7eb', padding: '8px 10px', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', resize: 'vertical' }}
-            />
-          </label>
-        )
+      {/* Lines from center to nodes */}
+      {visible.map((d, i) => {
+        const { x, y } = positions[i]
+        const isNew = newMacs.has(d.mac)
+        const lineColor = d.offline ? '#1e2530' : isNew ? '#22c55e' : '#1e3a5f'
         return (
-          <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
-            <input
-              type={f.type === 'number' ? 'number' : 'text'}
-              min={f.min} max={f.max} step={f.min < 1 ? 0.1 : 1}
-              placeholder={f.placeholder || ''}
-              value={payload[f.key] ?? ''}
-              onChange={e => onChange({ ...payload, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value })}
-              style={{ background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6, color: '#e5e7eb', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}
-            />
-          </label>
+          <line
+            key={`line-${d.mac}`}
+            x1={cx} y1={cy} x2={x} y2={y}
+            stroke={lineColor}
+            strokeWidth={isNew ? 1.5 : 1}
+            strokeOpacity={0.7}
+            strokeDasharray={d.offline ? '4 4' : undefined}
+          />
         )
       })}
-    </div>
-  )
-}
 
-// ── Task panel ────────────────────────────────────────────────────────────────
+      {/* Center gateway node */}
+      <circle cx={cx} cy={cy} r={28} fill="#0f1f3a" stroke="#06b6d4" strokeWidth={2} />
+      <circle cx={cx} cy={cy} r={22} fill="#0f1f3a" stroke="#06b6d430" strokeWidth={1} />
+      <text x={cx} y={cy - 4} textAnchor="middle" fontSize={8} fill="#06b6d4" fontFamily="monospace" fontWeight="600">GATEWAY</text>
+      <text x={cx} y={cy + 6} textAnchor="middle" fontSize={7} fill="#0e7490" fontFamily="monospace">◉ active</text>
 
-function TaskPanel({ task, deviceId }) {
-  const [expanded, setExpanded] = useState(false)
-  const [payload, setPayload]   = useState({ ...task.defaultPayload })
-  const [running, setRunning]   = useState(false)
-  const [result, setResult]     = useState(null)
-  const [error, setError]       = useState(null)
-  const pollRef = useRef(null)
-  const Icon = task.icon
-  const ResultRenderer = task.renderResult
+      {/* Device nodes */}
+      {visible.map((d, i) => {
+        const { x, y } = positions[i]
+        const isNew = newMacs.has(d.mac)
+        const fillColor = d.offline ? '#111827' : isNew ? '#0f2a1a' : '#0f1e2e'
+        const strokeColor = d.offline ? '#374151' : isNew ? '#22c55e' : '#1d4ed8'
+        const strokeW = isNew ? 2 : 1.5
+        const ipShort = d.ip ? d.ip.split('.').slice(-2).join('.') : '?'
+        const vendorShort = (d.vendor || '').split(' ')[0].slice(0, 8)
 
-  const launch = useCallback(async () => {
-    if (!deviceId) { setError('Select a device first'); return }
-    setRunning(true); setResult(null); setError(null)
-    try {
-      const { task_id } = await api.issueTask(deviceId, {
-        task_type: task.id,
-        payload,
-        timeout_seconds: task.id === 'run_lldp_neighbors' ? payload.duration + 20 : 120,
-      })
-      pollRef.current = setInterval(async () => {
-        try {
-          const tasks = await api.getTasks(deviceId)
-          const t = tasks.find(t => t.id === task_id)
-          if (t?.status === 'completed') {
-            clearInterval(pollRef.current)
-            setRunning(false); setResult(t.result)
-          } else if (t?.status === 'failed' || t?.status === 'timeout') {
-            clearInterval(pollRef.current)
-            setRunning(false); setError(t.error || t.status)
-          }
-        } catch {}
-      }, 2500)
-    } catch (e) {
-      setRunning(false); setError(e.message)
-    }
-  }, [deviceId, payload, task])
+        return (
+          <g key={d.mac}>
+            {/* Pulse ring for new devices */}
+            {isNew && (
+              <circle cx={x} cy={y} r={24} fill="none" stroke="#22c55e" strokeWidth={1} strokeOpacity={0.3} />
+            )}
+            <circle cx={x} cy={y} r={19} fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} />
+            <text x={x} y={y - 2} textAnchor="middle" dominantBaseline="middle" fontSize={9} fill={d.offline ? '#4b5563' : '#e5e7eb'} fontFamily="monospace">{ipShort}</text>
+            {/* Vendor label below node */}
+            <text x={x} y={y + 30} textAnchor="middle" fontSize={7} fill="#4b5563" fontFamily="monospace">{vendorShort}</text>
+            {/* NEW badge */}
+            {isNew && (
+              <g>
+                <rect x={x + 10} y={y - 28} width={22} height={11} rx={3} fill="#166534" stroke="#22c55e" strokeWidth={0.5} />
+                <text x={x + 21} y={y - 22} textAnchor="middle" fontSize={7} fill="#4ade80" fontFamily="monospace" fontWeight="700">NEW</text>
+              </g>
+            )}
+          </g>
+        )
+      })}
 
-  useEffect(() => () => clearInterval(pollRef.current), [])
+      {/* Legend */}
+      <g transform={`translate(12, ${H - 44})`}>
+        <circle cx={6} cy={6} r={5} fill="#0f1e2e" stroke="#1d4ed8" strokeWidth={1.5} />
+        <text x={15} y={10} fontSize={9} fill="#4b5563" fontFamily="monospace">Known</text>
+        <circle cx={6} cy={22} r={5} fill="#0f2a1a" stroke="#22c55e" strokeWidth={1.5} />
+        <text x={15} y={26} fontSize={9} fill="#4b5563" fontFamily="monospace">New</text>
+        <circle cx={6} cy={38} r={5} fill="#111827" stroke="#374151" strokeWidth={1.5} />
+        <text x={15} y={42} fontSize={9} fill="#4b5563" fontFamily="monospace">Offline</text>
+      </g>
 
-  return (
-    <div style={{ background: '#0d1117', border: '1px solid #1e2530', borderRadius: 12, overflow: 'hidden' }}>
-      <div onClick={() => setExpanded(e => !e)} style={{
-        display: 'flex', alignItems: 'center', gap: 14, padding: '15px 20px', cursor: 'pointer', userSelect: 'none',
-      }}>
-        <div style={{
-          width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: `${task.color}18`, border: `1px solid ${task.color}40`, flexShrink: 0,
-        }}>
-          <Icon size={15} color={task.color} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#f3f4f6' }}>{task.label}</div>
-          <div style={{ fontSize: 12, color: '#374151', marginTop: 2 }}>{task.description}</div>
-        </div>
-        {running && <Loader2 size={15} color="#06b6d4" style={{ animation: 'spin 1s linear infinite' }} />}
-        {result && !running && <CheckCircle size={15} color="#22c55e" />}
-        {error && !running && <AlertTriangle size={15} color="#ef4444" />}
-        {expanded ? <ChevronDown size={15} color="#374151" /> : <ChevronRight size={15} color="#374151" />}
-      </div>
-
-      {expanded && (
-        <div style={{ borderTop: '1px solid #1e2530', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {task.note && (
-            <div style={{ fontSize: 12, color: '#6b7280', background: '#0a1020', border: '1px solid #1e2530', borderRadius: 6, padding: '8px 12px' }}>
-              ℹ️ {task.note}
-            </div>
-          )}
-          <PayloadForm task={task} payload={payload} onChange={setPayload} />
-          <button onClick={launch} disabled={running} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            padding: '9px 20px', borderRadius: 8, border: 'none', cursor: running ? 'not-allowed' : 'pointer',
-            background: running ? '#1e2530' : task.color, color: running ? '#4b5563' : '#000',
-            fontWeight: 700, fontSize: 13, transition: 'all 0.15s',
-          }}>
-            {running ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Running…</> : <><Play size={14} /> Run</>}
-          </button>
-          {error && (
-            <div style={{ background: '#1a0a0a', border: '1px solid #7f1d1d', borderRadius: 8, padding: '10px 14px', color: '#ef4444', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}>{error}</div>
-          )}
-          {result && <ResultRenderer result={result} />}
-        </div>
+      {/* Empty state */}
+      {visible.length === 0 && (
+        <text x={cx} y={cy + 50} textAnchor="middle" fontSize={13} fill="#374151" fontFamily="monospace">
+          No devices discovered yet
+        </text>
       )}
-    </div>
+    </svg>
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function NetworkDiscoveryPage() {
-  const [devices, setDevices]   = useState([])
-  const [deviceId, setDeviceId] = useState('')
-  const [loading, setLoading]   = useState(true)
+  const [agents, setAgents]               = useState([])
+  const [selectedAgent, setSelectedAgent] = useState('')
+  const [iface, setIface]                 = useState('eth0')
+  const [scanInterval, setScanInterval]   = useState(60)
+  const [monitoring, setMonitoring]       = useState(false)
+  const [scanning, setScanning]           = useState(false)
+  const [discovered, setDiscovered]       = useState([])   // [{mac, ip, vendor, firstSeen, lastSeen, offline}]
+  const [newMacs, setNewMacs]             = useState(new Set())
+  const [lastScan, setLastScan]           = useState(null)
+  const [nextScanIn, setNextScanIn]       = useState(null)
+  const [scanError, setScanError]         = useState(null)
+  const [showOffline, setShowOffline]     = useState(true)
 
+  // Refs to avoid stale closures in async loop
+  const loopActive        = useRef(false)
+  const selectedAgentRef  = useRef(selectedAgent)
+  const ifaceRef          = useRef(iface)
+  const scanIntervalRef   = useRef(scanInterval)
+  const knownRef          = useRef(loadKnown())
+  const discoveredRef     = useRef(discovered)
+
+  useEffect(() => { selectedAgentRef.current = selectedAgent }, [selectedAgent])
+  useEffect(() => { ifaceRef.current = iface }, [iface])
+  useEffect(() => { scanIntervalRef.current = scanInterval }, [scanInterval])
+  useEffect(() => { discoveredRef.current = discovered }, [discovered])
+
+  // Load active agents on mount
   useEffect(() => {
     api.getDevices({ status: 'active' })
-      .then(d => { setDevices(d); if (d.length === 1) setDeviceId(d[0].id) })
+      .then(devs => {
+        const list = Array.isArray(devs) ? devs : (devs.devices || [])
+        setAgents(list)
+        if (list.length > 0) setSelectedAgent(list[0].id)
+      })
       .catch(() => {})
-      .finally(() => setLoading(false))
   }, [])
 
+  // Perform a single ARP scan and merge results
+  const performScan = useCallback(async () => {
+    const agentId = selectedAgentRef.current
+    if (!agentId) return
+
+    setScanning(true)
+    setScanError(null)
+
+    try {
+      const resp = await api.issueTask(agentId, {
+        task_type: 'run_arp_scan',
+        payload: { interface: ifaceRef.current, timeout: 10 },
+        timeout_seconds: 40,
+      })
+      const taskId = resp.task_id
+
+      // Poll for completion (max 20 attempts × 2s = 40s)
+      let result = null
+      for (let i = 0; i < 20 && loopActive.current; i++) {
+        await sleep(2000)
+        const tasks = await api.getTasks(agentId)
+        const t = (Array.isArray(tasks) ? tasks : (tasks.tasks || [])).find(t => t.id === taskId)
+        if (!t) continue
+        if (t.status === 'completed') { result = t.result; break }
+        if (t.status === 'failed' || t.status === 'timeout') {
+          setScanError(t.error || t.status)
+          break
+        }
+      }
+
+      if (result) {
+        const hosts = result.hosts || []
+        const now = new Date().toISOString()
+        const known = knownRef.current
+        const newlyFound = new Set()
+
+        setDiscovered(prev => {
+          const map = new Map(prev.map(d => [d.mac, { ...d, _seen: false }]))
+
+          for (const h of hosts) {
+            if (!h.mac) continue
+            if (map.has(h.mac)) {
+              const existing = map.get(h.mac)
+              existing.ip = h.ip
+              existing.vendor = h.vendor || existing.vendor
+              existing.lastSeen = now
+              existing._seen = true
+              existing.offline = false
+            } else {
+              map.set(h.mac, {
+                mac: h.mac, ip: h.ip, vendor: h.vendor || '',
+                firstSeen: now, lastSeen: now, _seen: true, offline: false,
+              })
+            }
+            if (!known[h.mac]) newlyFound.add(h.mac)
+          }
+
+          // Mark unseen hosts as offline (not gone — they may return)
+          for (const d of map.values()) {
+            if (!d._seen) d.offline = true
+          }
+
+          return [...map.values()]
+        })
+
+        if (newlyFound.size > 0) {
+          setNewMacs(prev => new Set([...prev, ...newlyFound]))
+        }
+
+        setLastScan(now)
+      }
+    } catch (e) {
+      setScanError(e.message || 'Scan error')
+    } finally {
+      setScanning(false)
+    }
+  }, [])
+
+  // Monitoring loop
+  const runLoop = useCallback(async () => {
+    while (loopActive.current) {
+      await performScan()
+      if (!loopActive.current) break
+
+      // Countdown to next scan
+      const interval = scanIntervalRef.current
+      for (let i = interval; i > 0; i--) {
+        if (!loopActive.current) { setNextScanIn(null); return }
+        setNextScanIn(i)
+        await sleep(1000)
+      }
+      setNextScanIn(null)
+    }
+  }, [performScan])
+
+  const startMonitoring = useCallback(() => {
+    if (!selectedAgentRef.current) return
+    loopActive.current = true
+    setMonitoring(true)
+    setNextScanIn(null)
+    runLoop()
+  }, [runLoop])
+
+  const stopMonitoring = useCallback(() => {
+    loopActive.current = false
+    setMonitoring(false)
+    setNextScanIn(null)
+  }, [])
+
+  // Cleanup on unmount
+  useEffect(() => () => { loopActive.current = false }, [])
+
+  const markAllKnown = () => {
+    const known = knownRef.current
+    for (const d of discovered) {
+      known[d.mac] = { ip: d.ip, vendor: d.vendor }
+    }
+    knownRef.current = known
+    saveKnown(known)
+    setNewMacs(new Set())
+  }
+
+  const forgetDevice = (mac) => {
+    const known = knownRef.current
+    delete known[mac]
+    knownRef.current = known
+    saveKnown(known)
+    setNewMacs(prev => { const s = new Set(prev); s.delete(mac); return s })
+    setDiscovered(prev => prev.filter(d => d.mac !== mac))
+  }
+
+  const online  = discovered.filter(d => !d.offline)
+  const offline = discovered.filter(d => d.offline)
+
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 900, margin: '0 auto' }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    <div style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse-ring { 0% { r: 19; opacity: 0.6; } 100% { r: 28; opacity: 0; } }
+      `}</style>
 
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-            <Network size={22} color="#06b6d4" />
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f3f4f6', fontFamily: 'Syne, sans-serif', margin: 0 }}>
-              Network Discovery
-            </h1>
-          </div>
-          <p style={{ fontSize: 13, color: '#4b5563', margin: 0 }}>
-            ARP scan, ping sweep, NetBIOS enumeration, LLDP topology, NTP sync, and Wake-on-LAN
-          </p>
-        </div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <Network size={22} color="#06b6d4" />
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f3f4f6', fontFamily: 'Syne, sans-serif', margin: 0 }}>
+          Network Discovery
+        </h1>
+        {newMacs.size > 0 && (
+          <span style={{
+            background: '#14532d', color: '#4ade80', border: '1px solid #166534',
+            borderRadius: 9999, padding: '2px 10px', fontSize: 12, fontWeight: 600,
+          }}>
+            {newMacs.size} new device{newMacs.size !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
+      <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 28 }}>
+        Continuously scan your network for devices. New arrivals are highlighted automatically.
+      </p>
 
-      {/* Device selector */}
+      {/* Controls bar */}
       <div style={{
         background: '#0d1117', border: '1px solid #1e2530', borderRadius: 10,
-        padding: '14px 18px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 14,
+        padding: '14px 18px', marginBottom: 20,
+        display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap',
       }}>
-        <Server size={16} color="#06b6d4" />
-        <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500, whiteSpace: 'nowrap' }}>Run from agent:</span>
-        <select
-          value={deviceId}
-          onChange={e => setDeviceId(e.target.value)}
+        {/* Agent select */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Agent</label>
+          <select
+            value={selectedAgent}
+            onChange={e => setSelectedAgent(e.target.value)}
+            disabled={monitoring}
+            style={{
+              background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
+              color: '#e5e7eb', padding: '6px 10px', fontSize: 13,
+              fontFamily: 'JetBrains Mono, monospace', minWidth: 200, cursor: monitoring ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <option value="">— select active device —</option>
+            {agents.map(d => (
+              <option key={d.id} value={d.id}>{d.name} ({d.last_ip || 'no IP'})</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Interface */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Interface</label>
+          <input
+            value={iface}
+            onChange={e => setIface(e.target.value)}
+            disabled={monitoring}
+            style={{
+              background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
+              color: '#e5e7eb', padding: '6px 10px', fontSize: 13,
+              fontFamily: 'JetBrains Mono, monospace', width: 90,
+              cursor: monitoring ? 'not-allowed' : 'text',
+            }}
+          />
+        </div>
+
+        {/* Scan interval */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Interval</label>
+          <select
+            value={scanInterval}
+            onChange={e => setScanInterval(Number(e.target.value))}
+            disabled={monitoring}
+            style={{
+              background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
+              color: '#e5e7eb', padding: '6px 10px', fontSize: 13,
+              fontFamily: 'JetBrains Mono, monospace', cursor: monitoring ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {SCAN_INTERVALS.map(i => (
+              <option key={i.value} value={i.value}>{i.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Start / Stop */}
+        <button
+          onClick={monitoring ? stopMonitoring : startMonitoring}
+          disabled={!selectedAgent}
           style={{
-            flex: 1, background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-            color: deviceId ? '#e5e7eb' : '#4b5563', padding: '7px 10px', fontSize: 13,
-            fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 7,
+            padding: '7px 16px', borderRadius: 7, border: 'none',
+            cursor: selectedAgent ? 'pointer' : 'not-allowed',
+            fontWeight: 700, fontSize: 13,
+            background: monitoring ? '#450a0a' : '#06b6d4',
+            color: monitoring ? '#fca5a5' : '#000f14',
+            transition: 'all 0.15s',
           }}
         >
-          <option value="">— select active device —</option>
-          {devices.map(d => (
-            <option key={d.id} value={d.id}>{d.name} ({d.last_ip || 'no IP'})</option>
-          ))}
-        </select>
+          {monitoring
+            ? <><Square size={14} /> Stop</>
+            : <><Play size={14} /> Start Monitoring</>}
+        </button>
+
+        {/* Status indicators */}
+        <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 12, textAlign: 'right' }}>
+          {scanning && (
+            <span style={{ color: '#06b6d4', display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
+              <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> Scanning…
+            </span>
+          )}
+          {lastScan && !scanning && (
+            <span style={{ color: '#4b5563' }}>Last: {new Date(lastScan).toLocaleTimeString()}</span>
+          )}
+          {nextScanIn !== null && !scanning && (
+            <span style={{ color: '#374151' }}>Next in {nextScanIn}s</span>
+          )}
+          {scanError && (
+            <span style={{ color: '#ef4444', maxWidth: 200, wordBreak: 'break-word' }}>
+              <AlertTriangle size={11} style={{ display: 'inline', marginRight: 3 }} />{scanError}
+            </span>
+          )}
+        </div>
       </div>
 
-      {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-          <Loader2 size={24} color="#06b6d4" style={{ animation: 'spin 1s linear infinite' }} />
+      {/* Stats row */}
+      {discovered.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
+          {[
+            { label: 'Total discovered', value: discovered.length, color: '#06b6d4' },
+            { label: 'Online',           value: online.length,     color: '#22c55e' },
+            { label: 'Offline',          value: offline.length,    color: '#6b7280' },
+            { label: 'New devices',      value: newMacs.size,      color: '#f59e0b' },
+          ].map(s => (
+            <div key={s.label} style={{
+              background: '#0d1117', border: '1px solid #1e2530', borderRadius: 8, padding: '12px 16px',
+            }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: s.color, fontFamily: 'JetBrains Mono, monospace' }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Main content: diagram + table */}
+      {discovered.length > 0 ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
+          {/* Network diagram */}
+          <div style={{ background: '#0a0c10', border: '1px solid #1e2530', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '10px 14px', borderBottom: '1px solid #1e2530',
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Network Map
+              </span>
+              <button
+                onClick={() => setShowOffline(v => !v)}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#4b5563' }}
+              >
+                {showOffline ? <EyeOff size={12} /> : <Eye size={12} />}
+                {showOffline ? 'Hide offline' : 'Show offline'}
+              </button>
+            </div>
+            <NetworkDiagram discovered={discovered} newMacs={newMacs} showOffline={showOffline} />
+          </div>
+
+          {/* Device table */}
+          <div style={{ background: '#0d1117', border: '1px solid #1e2530', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '10px 14px', borderBottom: '1px solid #1e2530',
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Discovered Devices
+              </span>
+              {newMacs.size > 0 && (
+                <button
+                  onClick={markAllKnown}
+                  style={{ fontSize: 11, color: '#22c55e', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <CheckCircle size={11} /> Mark all known
+                </button>
+              )}
+            </div>
+            <div style={{ overflowY: 'auto', maxHeight: 360 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
+                <thead>
+                  <tr style={{ position: 'sticky', top: 0, background: '#0d1117' }}>
+                    {['', 'IP', 'MAC', 'Vendor', 'Last seen', ''].map((h, i) => (
+                      <th key={i} style={{ textAlign: 'left', padding: '6px 10px', color: '#374151', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', borderBottom: '1px solid #1e2530', fontWeight: 600 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...discovered]
+                    .sort((a, b) => (a.offline ? 1 : 0) - (b.offline ? 1 : 0) || a.ip?.localeCompare(b.ip))
+                    .map(d => {
+                      const isNew = newMacs.has(d.mac)
+                      return (
+                        <tr key={d.mac} style={{
+                          borderBottom: '1px solid #0a0c0f',
+                          background: isNew ? '#0a1f0f' : 'transparent',
+                        }}>
+                          <td style={{ padding: '6px 10px' }}>
+                            <span style={{
+                              fontSize: 16,
+                              color: d.offline ? '#374151' : isNew ? '#22c55e' : '#1d4ed8',
+                              lineHeight: 1,
+                            }}>●</span>
+                          </td>
+                          <td style={{ padding: '6px 10px', color: d.offline ? '#4b5563' : '#e5e7eb' }}>{d.ip}</td>
+                          <td style={{ padding: '6px 10px', color: '#6b7280', fontSize: 11 }}>{d.mac}</td>
+                          <td style={{ padding: '6px 10px', color: '#4b5563', fontSize: 11 }}>{d.vendor || '—'}</td>
+                          <td style={{ padding: '6px 10px', color: '#374151', fontSize: 11 }}>
+                            {new Date(d.lastSeen).toLocaleTimeString()}
+                          </td>
+                          <td style={{ padding: '6px 8px' }}>
+                            <button
+                              onClick={() => forgetDevice(d.mac)}
+                              title="Remove from list"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#374151', padding: 2 }}
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {NET_TASKS.map(task => (
-            <TaskPanel key={task.id} task={task} deviceId={deviceId} />
-          ))}
+        /* Empty state */
+        <div style={{
+          textAlign: 'center', padding: '70px 0', color: '#374151',
+          border: '1px dashed #1e2530', borderRadius: 10,
+        }}>
+          <Network size={52} color="#1e2530" style={{ marginBottom: 16 }} />
+          <p style={{ fontSize: 14, marginBottom: 6 }}>No devices discovered yet</p>
+          <p style={{ fontSize: 12, color: '#1e2530' }}>
+            Select an agent and click <strong style={{ color: '#374151' }}>Start Monitoring</strong> to begin scanning.
+          </p>
         </div>
       )}
     </div>

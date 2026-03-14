@@ -255,7 +255,7 @@ function UptimeBadge({ pct }) {
 }
 
 // ── Expanded chart panel (inline accordion) ───────────────────────────────────
-function DeviceChartPanel({ device, targets, hours }) {
+function DeviceChartPanel({ device, targets, hours, onDeleteTarget }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
@@ -273,40 +273,58 @@ function DeviceChartPanel({ device, targets, hours }) {
     </div>
   );
   if (error) return <p className="text-xs text-red-DEFAULT px-1">{error}</p>;
-  if (!data?.checks?.length) return (
-    <p className="text-xs text-slate-600 px-1 py-4">No check data for this period.</p>
-  );
 
-  const wanChecks = data.checks.filter(c => c.source === "wan");
-  const lanChecks = data.checks.filter(c => c.source === "lan");
-
-  // Group LAN checks by target host, preserving target order from the targets list
-  const lanByTarget = lanChecks.reduce((acc, c) => {
-    if (!acc[c.target]) acc[c.target] = [];
-    acc[c.target].push(c);
-    return acc;
-  }, {});
-
-  // Order: targets defined in the targets list first, then any unlabelled extras
-  const orderedTargets = [
-    ...targets.filter(t => lanByTarget[t.host]).map(t => t.host),
-    ...Object.keys(lanByTarget).filter(h => !targets.find(t => t.host === h)),
-  ];
+  const checks    = data?.checks || [];
+  const wanChecks = checks.filter(c => c.source === "wan");
+  const lanChecks = checks.filter(c => c.source === "lan");
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+      {/* WAN chart */}
       {wanChecks.length > 0 && (
-        <SmokepingChart checks={wanChecks} hours={hours} label="WAN — server → device" />
+        <div className="rounded-lg border border-bg-border bg-bg-base p-3">
+          <p className="text-xs font-mono text-slate-500 uppercase tracking-wider mb-2">
+            WAN — server → device
+          </p>
+          <SmokepingChart checks={wanChecks} hours={hours} label="" />
+        </div>
       )}
-      {orderedTargets.map(host => {
-        const tgt = targets.find(t => t.host === host);
-        const lbl = tgt ? `${tgt.label} · ${host}` : host;
+
+      {/* One card per LAN monitor target */}
+      {targets.map(t => {
+        const targetChecks = lanChecks.filter(c => c.target === t.host);
         return (
-          <SmokepingChart key={host} checks={lanByTarget[host]} hours={hours} label={lbl} />
+          <div key={t.id} className="rounded-lg border border-bg-border bg-bg-base p-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${t.enabled ? "bg-green-DEFAULT" : "bg-slate-700"}`} />
+                <span className="text-sm font-mono font-500 text-slate-200">{t.label}</span>
+                <span className="text-xs font-mono text-slate-600">{t.host}</span>
+                <span className="text-xs text-slate-700">· every {t.interval_seconds}s</span>
+              </div>
+              {onDeleteTarget && (
+                <button
+                  onClick={() => onDeleteTarget(t.id)}
+                  className="p-1 text-slate-700 hover:text-red-DEFAULT transition-colors rounded"
+                  title="Remove monitor target"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {targetChecks.length > 0 ? (
+              <SmokepingChart checks={targetChecks} hours={hours} label="" />
+            ) : (
+              <p className="text-xs text-slate-700 py-2 font-mono">
+                No check data for this target in the selected period.
+              </p>
+            )}
+          </div>
         );
       })}
-      {wanChecks.length === 0 && orderedTargets.length === 0 && (
-        <p className="text-xs text-slate-600">No check data for this period.</p>
+
+      {wanChecks.length === 0 && targets.length === 0 && (
+        <p className="text-xs text-slate-600 py-2">No check data for this period.</p>
       )}
     </div>
   );
@@ -443,7 +461,7 @@ export default function Monitoring() {
   const deleteTarget = async (id) => {
     if (!confirm("Remove this monitor target?")) return;
     try {
-      await api.delete(`/v1/monitoring/targets/${id}`);
+      await api.deleteMonitorTarget(id);
       load();
     } catch (e) { setError(e.message); }
   };
@@ -636,6 +654,7 @@ export default function Monitoring() {
                       device={device}
                       targets={devTargets}
                       hours={hours}
+                      onDeleteTarget={deleteTarget}
                     />
                   </div>
                 )}
