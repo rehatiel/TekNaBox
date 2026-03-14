@@ -1,0 +1,101 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mspplatform
+      POSTGRES_USER: mspuser
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mspuser -d mspplatform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./msp-server
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mspuser:${DB_PASSWORD}@db:5432/mspplatform
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      DEVICE_TOKEN_SECRET: ${DEVICE_TOKEN_SECRET}
+      ARTIFACT_BUCKET: ${ARTIFACT_BUCKET:-/artifacts}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      BOOTSTRAP_EMAIL: ${BOOTSTRAP_EMAIL:-}
+      BOOTSTRAP_PASSWORD: ${BOOTSTRAP_PASSWORD:-}
+    volumes:
+      - artifacts:/artifacts
+    networks:
+      - internal
+    ports:
+      - "127.0.0.1:8005:8000"  # localhost only — NPM routes agent traffic here
+
+  worker:
+    build:
+      context: ./msp-server
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    command: python -m app.workers.main
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mspuser:${DB_PASSWORD}@db:5432/mspplatform
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      DEVICE_TOKEN_SECRET: ${DEVICE_TOKEN_SECRET}
+      ARTIFACT_BUCKET: ${ARTIFACT_BUCKET:-/artifacts}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - artifacts:/artifacts
+    networks:
+      - internal
+
+  ui:
+    build:
+      context: ./msp-ui
+      dockerfile: Dockerfile
+      args:
+        VITE_WS_BASE: ${VITE_WS_BASE}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3005:80"   # NPM proxy host: yourserver.com → port 3005
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:
+  artifacts:

@@ -1,0 +1,21 @@
+# MSP Agent — Python dependencies
+# Install with:  pip3 install -r requirements.txt --break-system-packages
+#
+# All system-binary dependencies (nmap, tshark, ldapsearch, etc.) are handled
+# by install.sh — only Python packages belong here.
+
+# ── Core (required) ───────────────────────────────────────────────────────────
+websockets>=12.0          # WebSocket client — device↔server channel
+
+# ── Optional: AD Kerberos enumeration ─────────────────────────────────────────
+# Used by tasks/ad_recon.py via: python3 -m impacket.examples.GetUserSPNs
+# Falls back gracefully if not installed (Kerberoast/AS-REP checks skipped).
+impacket>=0.12.0
+
+# ── Optional: Speedtest ───────────────────────────────────────────────────────
+# Used by tasks/speedtest.py; falls back to HTTP download test if not installed.
+speedtest-cli>=2.1.3
+
+# ── Optional: VLAN hopping security test ──────────────────────────────────────
+# Used by tasks/vlan_hop.py. Requires CAP_NET_RAW (root). Falls back gracefully.
+scapy>=2.5.0

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"D:/Projects/teknabox/msp-agent-v2/core\" -type f -name \"*.py\" 2>/dev/null | sort)"
+    ]
+  }
+}

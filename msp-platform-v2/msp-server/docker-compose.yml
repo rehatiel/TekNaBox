@@ -1,0 +1,72 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mspplatform
+      POSTGRES_USER: mspuser
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mspuser -d mspplatform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mspuser:${DB_PASSWORD}@db:5432/mspplatform
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      DEVICE_TOKEN_SECRET: ${DEVICE_TOKEN_SECRET}
+      ARTIFACT_BUCKET: ${ARTIFACT_BUCKET:-/artifacts}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+    volumes:
+      - artifacts:/artifacts
+    ports:
+      - "8005:8000"   # Nginx Proxy Manager forwards 443 → this port
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    command: python -m app.workers.main
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mspuser:${DB_PASSWORD}@db:5432/mspplatform
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      DEVICE_TOKEN_SECRET: ${DEVICE_TOKEN_SECRET}
+      ARTIFACT_BUCKET: ${ARTIFACT_BUCKET:-/artifacts}
+    volumes:
+      - artifacts:/artifacts
+
+volumes:
+  pgdata:
+  artifacts:

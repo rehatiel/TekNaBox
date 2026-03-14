@@ -1,0 +1,53 @@
+[Unit]
+Description=MSP Remote Diagnostics Agent
+Documentation=https://github.com/your-msp/agent
+After=network-online.target
+Wants=network-online.target
+After=NetworkManager-wait-online.service
+
+[Service]
+Type=simple
+User=msp-agent
+Group=msp-agent
+
+ExecStart=/usr/local/bin/msp-agent
+WorkingDirectory=/opt/msp-agent
+
+# Restart on any failure, with backoff
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Give the agent 10s to shut down cleanly on SIGTERM before SIGKILL
+TimeoutStopSec=10
+KillMode=mixed
+KillSignal=SIGTERM
+FinalKillSignal=SIGKILL
+
+# Environment
+Environment=MSP_CONFIG_PATH=/etc/msp-agent/config.json
+Environment=MSP_AGENT_PATH=/usr/local/bin/msp-agent
+
+# Logging — stdout goes to journald automatically
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=msp-agent
+
+# Hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ReadWritePaths=/etc/msp-agent /var/log/msp-agent /tmp /opt/msp-agent
+# Protect against OOM killer — agent is more important than most user processes
+OOMScoreAdjust=-100
+# Allow network access
+AmbientCapabilities=CAP_NET_RAW
+
+# Resource limits — tune for your hardware if needed
+# 256M is comfortable for a Pi Zero W; raise for x86 servers running heavy tasks
+MemoryMax=256M
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target
