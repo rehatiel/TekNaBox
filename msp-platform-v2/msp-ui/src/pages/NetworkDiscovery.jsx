@@ -479,10 +479,18 @@ export default function NetworkDiscoveryPage() {
         const result = tasks[0]?.result
         const ifaces = result?.interfaces
         if (Array.isArray(ifaces) && ifaces.length > 0) {
-          const names = ifaces.map(i => (typeof i === 'string' ? i : i.name)).filter(Boolean)
-          setInterfaces(names)
+          const parsed = ifaces
+            .map(i => {
+              const name = typeof i === 'string' ? i : i.name
+              const ip   = Array.isArray(i.addresses)
+                ? (i.addresses.find(a => a.family === 'inet')?.addr || '')
+                : ''
+              return name ? { name, ip } : null
+            })
+            .filter(Boolean)
+          setInterfaces(parsed)
           // Pre-select if current iface not in list
-          if (names.length > 0 && !names.includes(iface)) setIface(names[0])
+          if (parsed.length > 0 && !parsed.some(p => p.name === iface)) setIface(parsed[0].name)
         } else {
           setInterfaces([])
         }
@@ -575,7 +583,9 @@ export default function NetworkDiscoveryPage() {
               disabled={active}
               style={{ ...selectStyle, width: 130, cursor: active ? 'not-allowed' : 'pointer' }}
             >
-              {interfaces.map(name => <option key={name} value={name}>{name}</option>)}
+              {interfaces.map(({ name, ip }) => (
+                <option key={name} value={name}>{name}{ip ? ` (${ip})` : ''}</option>
+              ))}
             </select>
           ) : (
             <input
@@ -656,10 +666,10 @@ export default function NetworkDiscoveryPage() {
         </div>
       )}
 
-      {/* Main content: diagram + table */}
+      {/* Main content: diagram full-width, table below */}
       {discovered.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
-          {/* Network diagram */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Network diagram — full width */}
           <div style={{ background: '#0a0c10', border: '1px solid #1e2530', borderRadius: 10, overflow: 'hidden' }}>
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -679,7 +689,7 @@ export default function NetworkDiscoveryPage() {
                 </button>
               </div>
             </div>
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', height: 460 }}>
               <NetworkDiagram
                 discovered={discovered}
                 newMacs={newMacs}
@@ -698,7 +708,7 @@ export default function NetworkDiscoveryPage() {
             </div>
           </div>
 
-          {/* Device table */}
+          {/* Device table — full width below diagram */}
           <div style={{ background: '#0d1117', border: '1px solid #1e2530', borderRadius: 10, overflow: 'hidden' }}>
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -716,7 +726,7 @@ export default function NetworkDiscoveryPage() {
                 </button>
               )}
             </div>
-            <div style={{ overflowY: 'auto', maxHeight: 380 }}>
+            <div style={{ overflowY: 'auto', maxHeight: 320 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
                 <thead>
                   <tr style={{ position: 'sticky', top: 0, background: '#0d1117' }}>

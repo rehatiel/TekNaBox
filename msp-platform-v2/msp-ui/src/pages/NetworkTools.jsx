@@ -324,7 +324,9 @@ function PayloadForm({ task, payload, onChange, interfaces }) {
                 onChange={e => onChange({ ...payload, [f.key]: e.target.value })}
                 style={{ background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6, color: '#e5e7eb', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer' }}
               >
-                {interfaces.map(name => <option key={name} value={name}>{name}</option>)}
+                {interfaces.map(({ name, ip }) => (
+                <option key={name} value={name}>{name}{ip ? ` (${ip})` : ''}</option>
+              ))}
               </select>
             ) : (
               <input
@@ -374,8 +376,8 @@ function TaskPanel({ task, deviceId, interfaces }) {
     if (!hasIfaceField || !interfaces || interfaces.length === 0) return
     setPayload(prev => {
       const cur = prev.interface
-      if (!cur || cur === 'eth0' || !interfaces.includes(cur)) {
-        return { ...prev, interface: interfaces[0] }
+      if (!cur || cur === 'eth0' || !interfaces.some(i => i.name === cur)) {
+        return { ...prev, interface: interfaces[0].name }
       }
       return prev
     })
@@ -483,7 +485,16 @@ export default function NetworkToolsPage() {
         const tasks  = Array.isArray(data) ? data : (data.tasks || [])
         const ifaces = tasks[0]?.result?.interfaces
         if (Array.isArray(ifaces) && ifaces.length > 0) {
-          setInterfaces(ifaces.map(i => (typeof i === 'string' ? i : i.name)).filter(Boolean))
+          const parsed = ifaces
+            .map(i => {
+              const name = typeof i === 'string' ? i : i.name
+              const ip   = Array.isArray(i.addresses)
+                ? (i.addresses.find(a => a.family === 'inet')?.addr || '')
+                : ''
+              return name ? { name, ip } : null
+            })
+            .filter(Boolean)
+          setInterfaces(parsed)
         } else {
           setInterfaces([])
         }
