@@ -1,0 +1,102 @@
+Teknabox Source Available License
+Version 1.0, March 2026
+
+Copyright (c) 2026 [Your Name / Company Name]. All rights reserved.
+
+DEFINITIONS
+
+"Software" means the Teknabox source code, binaries, documentation, and all
+associated files in this repository.
+
+"Use" means to install, run, operate, access, or interact with the Software
+for any purpose, including in a personal or commercial environment.
+
+"Modify" means to create derivative works based on the Software for internal
+use within your own organisation.
+
+"Distribute" means to provide, sell, sublicense, transfer, or otherwise make
+the Software or any derivative work available to any third party.
+
+"Commercial Sale" means distributing the Software or any substantially similar
+product or service to third parties in exchange for money, subscription fees,
+licensing fees, or any other form of commercial consideration.
+
+PERMISSIONS
+
+Subject to the conditions below, you are hereby granted a non-exclusive,
+worldwide, royalty-free license to:
+
+  1. Use the Software for personal, internal, or commercial operational purposes.
+     This includes running the Software to manage your own infrastructure or
+     the infrastructure of your clients as part of your business operations.
+
+  2. Modify the Software for your own internal use.
+
+  3. Copy and retain the Software for backup or archival purposes.
+
+CONDITIONS
+
+  1. Attribution. You must retain this license file, all copyright notices, and
+     all references to "Teknabox" in any copies or substantial portions of the
+     Software that you retain or deploy.
+
+  2. No Resale Without Approval. You may not engage in Commercial Sale of the
+     Software, or any product or service that is substantially derived from or
+     powered by the Software, without prior written approval from the copyright
+     holder. To request approval, contact the copyright holder at the address
+     or repository listed above.
+
+  3. No Sublicensing. You may not sublicense, relicense, or grant rights in the
+     Software to any third party beyond what is expressly permitted in this
+     license.
+
+  4. No Misrepresentation. You may not represent the Software as your own
+     original creation or remove, obscure, or alter any copyright, trademark,
+     or attribution notices.
+
+  5. Modifications Must Remain Internal. You may share modified versions of the
+     Software only with employees or contractors working directly for you and
+     bound by confidentiality obligations. Modified versions may not be publicly
+     distributed or used to provide a competing product or service without prior
+     written approval.
+
+WHAT IS EXPLICITLY ALLOWED
+
+- Running this software as part of your MSP, IT business, or internal IT
+  operations, including charging clients for your managed services (you are
+  selling your services, not the software itself).
+
+- Self-hosting for personal use, home lab, or non-commercial projects.
+
+- Forking and modifying for your own private use.
+
+- Contributing improvements back to the original repository.
+
+WHAT IS EXPLICITLY NOT ALLOWED WITHOUT APPROVAL
+
+- Selling, licensing, or distributing this software (or a product built on it)
+  to third parties as a standalone product.
+
+- Offering the software as a hosted SaaS or managed product sold to others.
+
+- Rebranding and reselling this software as your own product.
+
+DISCLAIMER OF WARRANTIES
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+TERMINATION
+
+Your rights under this license terminate automatically if you breach any of its
+conditions. Upon termination you must cease all use and destroy all copies of
+the Software in your possession.
+
+CONTACT
+
+For commercial licensing inquiries or approval requests, contact the copyright
+holder via the repository listed in this project.
