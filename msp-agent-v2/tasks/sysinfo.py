@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 async def run(payload: dict) -> dict:
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     info = {}
 
     # Basic system

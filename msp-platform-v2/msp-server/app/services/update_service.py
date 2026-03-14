@@ -51,7 +51,7 @@ async def evaluate_rollout(
             and_(
                 UpdatePolicy.release_id == release.id,
                 UpdatePolicy.msp_id == msp_id,
-                UpdatePolicy.is_active == True,
+                UpdatePolicy.is_active,
             )
         )
     )

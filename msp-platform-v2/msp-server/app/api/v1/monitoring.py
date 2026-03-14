@@ -322,7 +322,7 @@ async def _push_targets_to_device(device_id: str, db: AsyncSession):
     from app.services.connection_manager import send_to_device
     result = await db.execute(
         select(MonitorTarget).where(
-            and_(MonitorTarget.device_id == device_id, MonitorTarget.enabled == True)
+            and_(MonitorTarget.device_id == device_id, MonitorTarget.enabled)
         )
     )
     targets = result.scalars().all()

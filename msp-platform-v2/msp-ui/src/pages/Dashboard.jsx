@@ -47,9 +47,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     Promise.all([
-      api.getDevices(),
-      api.getAudit({ limit: 10 }),
-      api.getAllTasks({ limit: 200 }),
+      api.getDevices().catch(() => []),
+      api.getAudit({ limit: 10 }).catch(() => []),
+      api.getAllTasks({ limit: 200 }).catch(() => []),
       api.getUptimeSummary(24).catch(() => []),
       api.get('/v1/findings?limit=200').catch(() => []),
     ]).then(([d, a, t, u, f]) => {

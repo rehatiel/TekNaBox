@@ -166,9 +166,12 @@ def _get_cert_info(host: str, port: int) -> dict:
     from datetime import datetime, timezone
     not_after = cert.get("notAfter")
     if not_after:
-        expiry = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
-        days   = (expiry - datetime.now(timezone.utc)).days
-        return {"valid": True, "days_remaining": days, "expires_at": expiry.isoformat()}
+        try:
+            expiry = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+            days   = (expiry - datetime.now(timezone.utc)).days
+            return {"valid": True, "days_remaining": days, "expires_at": expiry.isoformat()}
+        except ValueError:
+            pass
     return {"valid": True, "days_remaining": None}
 
 

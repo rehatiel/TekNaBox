@@ -62,7 +62,7 @@ async def device_tunnel(
     msp_id      = None
 
     if ticket:
-        entry = consume_ws_ticket(ticket)
+        entry = await consume_ws_ticket(ticket)
         if not entry:
             await ws.close(code=4001, reason="Invalid or expired ticket")
             return

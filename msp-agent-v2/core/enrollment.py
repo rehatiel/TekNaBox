@@ -63,8 +63,7 @@ def enroll(config: AgentConfig) -> bool:
         return True
 
     except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        logger.error(f"Enrollment failed HTTP {e.code}: {body}")
+        logger.error(f"Enrollment failed HTTP {e.code}")
         return False
     except Exception as e:
         logger.error(f"Enrollment error: {e}")

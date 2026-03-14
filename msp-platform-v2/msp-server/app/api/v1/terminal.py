@@ -30,8 +30,10 @@ from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy import select
 from jose import JWTError
+import redis.asyncio as aioredis
 
 from app.core.database import AsyncSessionLocal
+from app.core.config import get_settings
 from app.core.security import decode_operator_token
 from app.models.models import Device, DeviceStatus, Operator
 from app.services import connection_manager as cm
@@ -43,6 +45,36 @@ logger = logging.getLogger(__name__)
 # Active terminal sessions: session_id → browser WebSocket
 # Used to route terminal_output from device back to the right browser
 _browser_sessions: dict[str, WebSocket] = {}
+
+
+async def _redis_session_relay(session_id: str, ws: WebSocket):
+    """
+    Subscribe to Redis for terminal output published by other uvicorn workers.
+    Runs as a background task for the lifetime of the browser WebSocket.
+    Without this, output from the Pi only reaches the browser if both are
+    handled by the same worker process.
+    """
+    r = aioredis.from_url(get_settings().redis_url)
+    pubsub = r.pubsub()
+    await pubsub.subscribe(f"terminal_out:{session_id}")
+    try:
+        async for message in pubsub.listen():
+            if session_id not in _browser_sessions:
+                break
+            if message["type"] != "message":
+                continue
+            try:
+                await ws.send_json(json.loads(message["data"]))
+            except Exception:
+                break
+    except asyncio.CancelledError:
+        pass
+    finally:
+        try:
+            await pubsub.unsubscribe(f"terminal_out:{session_id}")
+        except Exception:
+            pass
+        await r.aclose()
 
 
 @router.websocket("/v1/devices/{device_id}/terminal")
@@ -58,7 +90,7 @@ async def device_terminal(
 
     if ticket:
         # Preferred path: consume a short-lived single-use ticket
-        entry = consume_ws_ticket(ticket)
+        entry = await consume_ws_ticket(ticket)
         if not entry:
             await ws.close(code=4001, reason="Invalid or expired ticket")
             return
@@ -98,6 +130,7 @@ async def device_terminal(
     session_id = str(uuid.uuid4())
     await ws.accept()
     _browser_sessions[session_id] = ws
+    relay_task = asyncio.create_task(_redis_session_relay(session_id, ws))
 
     logger.info(f"terminal_session_opened device={device_id} session={session_id} operator={operator_id}")
 
@@ -139,6 +172,7 @@ async def device_terminal(
     except WebSocketDisconnect:
         pass
     finally:
+        relay_task.cancel()
         _browser_sessions.pop(session_id, None)
         # Tell Pi to clean up
         await cm.send_to_device(device_id, {
@@ -152,17 +186,24 @@ async def route_terminal_output(session_id: str, data: str, done: bool):
     """
     Called by device_channel when a terminal_output message arrives from a Pi.
     Forwards the output to the browser WebSocket holding this session.
+    If the session is on a different worker, publishes to Redis for that worker.
     """
     ws = _browser_sessions.get(session_id)
-    if not ws:
-        return
-
-    try:
-        if done:
-            await ws.send_json({"type": "closed"})
+    if ws:
+        try:
+            if done:
+                await ws.send_json({"type": "closed"})
+                _browser_sessions.pop(session_id, None)
+            else:
+                await ws.send_json({"type": "output", "data": data})
+        except Exception as e:
+            logger.debug(f"terminal_forward_failed session={session_id}: {e}")
             _browser_sessions.pop(session_id, None)
-        else:
-            await ws.send_json({"type": "output", "data": data})
-    except Exception as e:
-        logger.debug(f"terminal_forward_failed session={session_id}: {e}")
-        _browser_sessions.pop(session_id, None)
+    else:
+        # Session is on another worker — relay via Redis pub/sub
+        from app.services.connection_manager import _get_redis
+        msg = {"type": "closed"} if done else {"type": "output", "data": data}
+        try:
+            await _get_redis().publish(f"terminal_out:{session_id}", json.dumps(msg))
+        except Exception as e:
+            logger.debug(f"terminal_redis_relay_failed session={session_id}: {e}")

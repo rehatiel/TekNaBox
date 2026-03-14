@@ -27,8 +27,10 @@ from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from jose import JWTError
+import redis.asyncio as aioredis
 
 from app.core.database import AsyncSessionLocal
+from app.core.config import get_settings
 from app.core.security import decode_operator_token
 from app.models.models import Device, DeviceStatus, Operator
 from app.services import connection_manager as cm
@@ -39,6 +41,34 @@ logger = logging.getLogger(__name__)
 
 # Active bandwidth sessions: session_id → browser WebSocket
 _browser_sessions: dict[str, WebSocket] = {}
+
+
+async def _redis_bw_relay(session_id: str, ws: WebSocket):
+    """
+    Subscribe to Redis for bandwidth frames published by other uvicorn workers.
+    Runs as a background task for the lifetime of the browser WebSocket.
+    """
+    r = aioredis.from_url(get_settings().redis_url)
+    pubsub = r.pubsub()
+    await pubsub.subscribe(f"bandwidth_out:{session_id}")
+    try:
+        async for message in pubsub.listen():
+            if session_id not in _browser_sessions:
+                break
+            if message["type"] != "message":
+                continue
+            try:
+                await ws.send_json(json.loads(message["data"]))
+            except Exception:
+                break
+    except asyncio.CancelledError:
+        pass
+    finally:
+        try:
+            await pubsub.unsubscribe(f"bandwidth_out:{session_id}")
+        except Exception:
+            pass
+        await r.aclose()
 
 
 @router.websocket("/v1/devices/{device_id}/bandwidth")
@@ -56,7 +86,7 @@ async def device_bandwidth(
     msp_id      = None
 
     if ticket:
-        entry = consume_ws_ticket(ticket)
+        entry = await consume_ws_ticket(ticket)
         if not entry:
             await ws.close(code=4001, reason="Invalid or expired ticket")
             return
@@ -104,6 +134,7 @@ async def device_bandwidth(
     session_id = str(uuid.uuid4())
     await ws.accept()
     _browser_sessions[session_id] = ws
+    relay_task = asyncio.create_task(_redis_bw_relay(session_id, ws))
 
     logger.info(
         f"bandwidth_session_opened device={device_id} "
@@ -132,6 +163,7 @@ async def device_bandwidth(
     except WebSocketDisconnect:
         pass
     finally:
+        relay_task.cancel()
         _browser_sessions.pop(session_id, None)
         await cm.send_to_device(device_id, {
             "type":       "bandwidth_close",
@@ -144,27 +176,39 @@ async def route_bandwidth_message(msg: dict):
     """
     Called by device_channel when bandwidth_frame or bandwidth_closed
     arrives from the Pi. Forwards to the browser holding this session.
+    If the session is on a different worker, publishes to Redis for that worker.
     """
     session_id = msg.get("session_id", "")
     ws = _browser_sessions.get(session_id)
-    if not ws:
-        return
-
     msg_type = msg.get("type")
 
-    try:
-        if msg_type == "bandwidth_frame":
-            await ws.send_json({
-                "type": "frame",
-                "rows": msg.get("rows", []),
-                "ts":   msg.get("ts", 0),
-            })
-        elif msg_type == "bandwidth_closed":
-            await ws.send_json({
-                "type":   "closed",
-                "reason": msg.get("reason", ""),
-            })
+    if ws:
+        try:
+            if msg_type == "bandwidth_frame":
+                await ws.send_json({
+                    "type": "frame",
+                    "rows": msg.get("rows", []),
+                    "ts":   msg.get("ts", 0),
+                })
+            elif msg_type == "bandwidth_closed":
+                await ws.send_json({
+                    "type":   "closed",
+                    "reason": msg.get("reason", ""),
+                })
+                _browser_sessions.pop(session_id, None)
+        except Exception as e:
+            logger.debug(f"bandwidth_forward_failed session={session_id}: {e}")
             _browser_sessions.pop(session_id, None)
-    except Exception as e:
-        logger.debug(f"bandwidth_forward_failed session={session_id}: {e}")
-        _browser_sessions.pop(session_id, None)
+    else:
+        # Session is on another worker — relay via Redis pub/sub
+        from app.services.connection_manager import _get_redis
+        if msg_type == "bandwidth_frame":
+            out = {"type": "frame", "rows": msg.get("rows", []), "ts": msg.get("ts", 0)}
+        elif msg_type == "bandwidth_closed":
+            out = {"type": "closed", "reason": msg.get("reason", "")}
+        else:
+            return
+        try:
+            await _get_redis().publish(f"bandwidth_out:{session_id}", json.dumps(out))
+        except Exception as e:
+            logger.debug(f"bandwidth_redis_relay_failed session={session_id}: {e}")

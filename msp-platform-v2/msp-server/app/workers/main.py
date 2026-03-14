@@ -109,7 +109,7 @@ async def update_scheduler():
                         select(ClientRelease).where(
                             and_(
                                 ClientRelease.id == job.release_id,
-                                ClientRelease.is_active == True,
+                                ClientRelease.is_active,
                             )
                         )
                     )

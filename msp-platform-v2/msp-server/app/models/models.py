@@ -432,6 +432,7 @@ class UptimeCheck(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     device_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("devices.id"), nullable=False)
     msp_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("msp_organizations.id"), nullable=False)
+    customer_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("customer_organizations.id"))
 
     # What was checked
     target: Mapped[str] = mapped_column(String(255), nullable=False)       # IP/host that was pinged

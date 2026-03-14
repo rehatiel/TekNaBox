@@ -30,39 +30,43 @@ from app.models.models import (
 )
 from app.services.audit import write_audit
 
-# ── Short-lived WebSocket ticket store ────────────────────────────────────────
-# Maps ticket → {operator_id, msp_id, expires_at}
-# Single-use: consumed on first WebSocket auth.
-import time as _time
+# ── Short-lived WebSocket ticket store (Redis-backed) ─────────────────────────
+# Tickets are stored in Redis with a TTL so all uvicorn workers share the same
+# store. In-memory dicts would break multi-worker deployments because a ticket
+# issued by worker A would be invisible to worker B.
+import json as _json
 import secrets as _secrets
-_ws_tickets: dict[str, dict] = {}
+
 _WS_TICKET_TTL = 30  # seconds
+_TICKET_PREFIX = "ws_ticket:"
 
-def _purge_expired_tickets():
-    now = _time.time()
-    expired = [k for k, v in _ws_tickets.items() if v["expires_at"] < now]
-    for k in expired:
-        del _ws_tickets[k]
 
-def issue_ws_ticket(operator_id: str, msp_id: str) -> str:
-    _purge_expired_tickets()
+def _get_redis():
+    from app.services.connection_manager import _get_redis as _cm_get_redis
+    return _cm_get_redis()
+
+
+async def issue_ws_ticket(operator_id: str, msp_id: str) -> str:
     ticket = _secrets.token_urlsafe(32)
-    _ws_tickets[ticket] = {
-        "operator_id": operator_id,
-        "msp_id":      msp_id,
-        "expires_at":  _time.time() + _WS_TICKET_TTL,
-    }
+    payload = _json.dumps({"operator_id": operator_id, "msp_id": msp_id})
+    r = _get_redis()
+    await r.set(f"{_TICKET_PREFIX}{ticket}", payload, ex=_WS_TICKET_TTL)
     return ticket
 
-def consume_ws_ticket(ticket: str) -> dict | None:
-    """Validate and consume a WS ticket. Returns payload or None."""
-    _purge_expired_tickets()
-    entry = _ws_tickets.pop(ticket, None)
-    if not entry:
+
+async def consume_ws_ticket(ticket: str) -> dict | None:
+    """Validate and consume a WS ticket atomically. Returns payload or None."""
+    r = _get_redis()
+    key = f"{_TICKET_PREFIX}{ticket}"
+    # Pipeline: GET then DELETE — single-use guarantee
+    pipe = r.pipeline()
+    await pipe.get(key)
+    await pipe.delete(key)
+    results = await pipe.execute()
+    raw = results[0]
+    if not raw:
         return None
-    if _time.time() > entry["expires_at"]:
-        return None
-    return entry
+    return _json.loads(raw)
 from app.services.update_service import evaluate_rollout, notify_device_of_update
 from app.services import connection_manager as cm
 import aiofiles
@@ -573,7 +577,7 @@ async def list_releases(
     db: AsyncSession = Depends(get_db),
 ):
     q = select(ClientRelease).where(
-        and_(ClientRelease.msp_id == operator.msp_id, ClientRelease.is_active == True)
+        and_(ClientRelease.msp_id == operator.msp_id, ClientRelease.is_active)
     )
     if channel:
         q = q.where(ClientRelease.channel == channel)
@@ -714,5 +718,5 @@ async def get_ws_ticket(
     The browser exchanges this ticket in the WS URL instead of the long-lived
     operator JWT, preventing credential exposure in server/nginx access logs.
     """
-    ticket = issue_ws_ticket(operator.id, operator.msp_id)
+    ticket = await issue_ws_ticket(operator.id, operator.msp_id)
     return {"ticket": ticket, "expires_in": 30}

@@ -133,6 +133,17 @@ def _apply_update(version: str, config: "AgentConfig") -> None:
 
     os.replace(AGENT_DOWNLOAD_PATH, AGENT_INSTALL_PATH)
     os.chmod(AGENT_INSTALL_PATH, 0o755)
+
+    # Verify the new binary is executable before declaring success
+    try:
+        subprocess.run(
+            [AGENT_INSTALL_PATH, "--version"],
+            check=True, timeout=10,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        raise RuntimeError(f"New binary failed self-test: {e}") from e
+
     logger.info(f"Agent binary updated to version {version}")
 
     from core.config import save_config

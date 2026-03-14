@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find \"D:/Projects/teknabox/msp-agent-v2/core\" -type f -name \"*.py\" 2>/dev/null | sort)"
+      "Bash(find \"D:/Projects/teknabox/msp-agent-v2/core\" -type f -name \"*.py\" 2>/dev/null | sort)",
+      "Bash(find /d/Projects/teknabox/msp-platform-v2/msp-server -name \".env*\" -o -name \"*.env*\" 2>/dev/null | head -5)",
+      "Bash(cd /d/Projects/teknabox/msp-platform-v2/msp-server && grep -r \"def \\\\|@.*route\" app/api/v1/*.py | head -40)",
+      "Bash(cd /d/Projects/teknabox/msp-platform-v2/msp-server && grep -E \"@router\\\\.\\(get|post|patch|delete|websocket\\)\" app/api/v1/*.py | grep -oE '/@router\\\\.[a-z]+\\\\\\(\"[^\"]+' | sort | uniq)",
+      "Bash(grep -n \"asyncio.get_event_loop\\(\\)\" /d/Projects/teknabox/msp-agent-v2/tasks/*.py | head -10)",
+      "Bash(cd /d/Projects/teknabox/msp-platform-v2/msp-server && grep -h \"@router\" app/api/v1/*.py | sort | uniq | head -50)",
+      "Bash(cd D:/Projects/teknabox/msp-platform-v2 && docker compose ps 2>&1)"
     ]
   }
 }

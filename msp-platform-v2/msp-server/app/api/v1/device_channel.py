@@ -42,6 +42,16 @@ router = APIRouter(prefix="/v1/devices", tags=["device-channel"])
 logger = logging.getLogger(__name__)
 
 
+def _fire(coro) -> asyncio.Task:
+    """Create a fire-and-forget task that logs any unhandled exceptions."""
+    task = asyncio.create_task(coro)
+    def _on_done(t: asyncio.Task):
+        if not t.cancelled() and t.exception():
+            logger.error("Routing task failed", exc_info=t.exception())
+    task.add_done_callback(_on_done)
+    return task
+
+
 async def _authenticate_ws(token: str) -> Optional[str]:
     """Returns device_id if token is valid, else None."""
     try:
@@ -152,7 +162,7 @@ async def device_channel(
 
                 elif msg_type == "terminal_output":
                     from app.api.v1.terminal import route_terminal_output
-                    asyncio.create_task(route_terminal_output(
+                    _fire(route_terminal_output(
                         msg.get("session_id", ""),
                         msg.get("data", ""),
                         msg.get("done", False),
@@ -160,11 +170,11 @@ async def device_channel(
 
                 elif msg_type in ("bandwidth_frame", "bandwidth_closed"):
                     from app.api.v1.bandwidth import route_bandwidth_message
-                    asyncio.create_task(route_bandwidth_message(msg))
+                    _fire(route_bandwidth_message(msg))
 
                 elif msg_type in ("tunnel_data", "tunnel_closed"):
                     from app.api.v1.tunnel import route_tunnel_message
-                    asyncio.create_task(route_tunnel_message(
+                    _fire(route_tunnel_message(
                         msg.get("session_id", ""),
                         msg_type,
                         msg.get("data", ""),
@@ -185,6 +195,9 @@ async def device_channel(
                 elif msg_type == "pong":
                     pass  # keepalive acknowledged
 
+                else:
+                    logger.debug("Unknown msg_type %s from device %s", msg_type, device_id)
+
                 await db.commit()
 
     except WebSocketDisconnect:
@@ -196,10 +209,8 @@ async def device_channel(
         async with AsyncSessionLocal() as db:
             await db.execute(
                 sql_update(Device)
-                .where(
-                    Device.id == device_id,
-                    Device.status != DeviceStatus.REVOKED,
-                )
+                .where(Device.id == device_id)
+                .where(Device.status != DeviceStatus.REVOKED)
                 .values(status=DeviceStatus.OFFLINE)
             )
             await db.commit()
@@ -276,7 +287,10 @@ async def _handle_telemetry(
     if telemetry_type == "uptime_ping":
         from app.models.models import UptimeCheck
         data = msg.get("data", {})
-        for ping in data.get("results", [data]):  # support single or batch
+        results = data.get("results", [])
+        if not results:
+            return
+        for ping in results:
             check = UptimeCheck(
                 device_id=device_id,
                 msp_id=msp_id,

@@ -35,7 +35,7 @@ class ConnectionManager:
     def __init__(self, config: AgentConfig):
         self.config = config
         self._ws: Optional[websockets.WebSocketClientProtocol] = None
-        self._outbound: asyncio.Queue = asyncio.Queue()
+        self._outbound: asyncio.Queue = asyncio.Queue(maxsize=500)
         self._shutdown = False
         self._shutdown_event = asyncio.Event()
         self._last_token_refresh = time.time()
@@ -46,7 +46,10 @@ class ConnectionManager:
     # ── Public API ────────────────────────────────────────────────────────────
 
     async def send(self, msg: dict):
-        await self._outbound.put(msg)
+        try:
+            self._outbound.put_nowait(msg)
+        except asyncio.QueueFull:
+            logger.warning("Outbound queue full — dropping message")
 
     def send_nowait(self, msg: dict):
         try:

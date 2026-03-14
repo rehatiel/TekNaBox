@@ -25,7 +25,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 def create_operator_token(data: dict, expires_minutes: Optional[int] = None) -> str:
     exp = expires_minutes or settings.operator_token_expire_minutes
     payload = data.copy()
-    payload["exp"] = datetime.now(timezone.utc) + timedelta(minutes=exp)
+    payload["exp"] = int((datetime.now(timezone.utc) + timedelta(minutes=exp)).timestamp())
     payload["type"] = "operator"
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
@@ -42,7 +42,7 @@ def create_device_token(device_id: str, tenant_id: str, expires_hours: Optional[
         "sub": device_id,
         "tid": tenant_id,
         "type": "device",
-        "exp": datetime.now(timezone.utc) + timedelta(hours=exp),
+        "exp": int((datetime.now(timezone.utc) + timedelta(hours=exp)).timestamp()),
     }
     return jwt.encode(payload, settings.device_token_secret, algorithm=ALGORITHM)
 

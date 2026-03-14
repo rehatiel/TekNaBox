@@ -292,7 +292,7 @@ function ResultModal({ result, onClose }) {
           <p className="text-xs text-slate-600 mt-2">
             Run on the Pi:
           </p>
-          <CodeBlock>{`sudo bash install.sh --server https://yourserver.com --secret ${result.secret}`}</CodeBlock>
+          <CodeBlock>{`sudo bash install.sh --server ${import.meta.env.VITE_WS_BASE || window.location.origin} --secret ${result.secret}`}</CodeBlock>
         </div>
         <button onClick={onClose} className="btn-primary w-full mt-4">Done</button>
       </Modal>
