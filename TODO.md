@@ -6,6 +6,8 @@
 
 - [ ] **Fix monitor module** — The monitor module is not actively pinging. Investigate and fix the ping loop.
 
+- [ ] **Uptime monitor not recording data** — After the bug-fix rebuild, the uptime monitor page shows no data for configured targets. Likely cause: the `customer_id` column added to the `uptime_checks` table (migration 0005) has not been applied to the live database. Run migration 0005 on the server and verify data appears in the monitoring page.
+
 - [ ] **Network monitoring: persistent background service** — Convert network monitoring into a start/stop service that continues running in the background even after navigating away from the page.
 
 - [ ] **Network monitoring: interactive diagram** — Make the network diagram interactive: support zoom, pan/enlarge, and clicking on individual devices for detail.

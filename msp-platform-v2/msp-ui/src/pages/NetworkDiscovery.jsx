@@ -1,14 +1,15 @@
 /**
  * Network Discovery — real-time network device scanner.
- * Periodically issues ARP scans from a selected agent, detects new devices,
- * and renders a live auto-updating network diagram.
+ * - Persistent background monitoring (survives page navigation)
+ * - Interface auto-detection from agent sysinfo
+ * - Interactive zoomable/pannable/clickable network diagram
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '../lib/api'
 import {
   Network, Play, Square, Loader2, CheckCircle,
-  AlertTriangle, Server, Eye, EyeOff, Trash2
+  AlertTriangle, Eye, EyeOff, Trash2, X, ZoomIn, ZoomOut,
 } from 'lucide-react'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -27,15 +28,161 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
 // ── LocalStorage helpers ───────────────────────────────────────────────────────
 
 function loadKnown() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') }
-  catch { return {} }
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') } catch { return {} }
 }
 
 function saveKnown(known) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(known)) } catch {}
 }
 
-// ── Network Diagram (SVG) ──────────────────────────────────────────────────────
+// ── Persistent monitoring service ──────────────────────────────────────────────
+// Lives at module scope — survives page navigation within the SPA.
+
+const _svc = {
+  active:     false,
+  agentId:    '',
+  iface:      'eth0',
+  interval:   60,
+  discovered: [],
+  known:      loadKnown(),
+  newMacs:    new Set(),
+  lastScan:   null,
+  nextScanIn: null,
+  scanning:   false,
+  error:      null,
+  _listeners: new Set(),
+
+  subscribe(fn) {
+    this._listeners.add(fn)
+    fn(this._snap())
+    return () => this._listeners.delete(fn)
+  },
+
+  _snap() {
+    return {
+      active:     this.active,
+      agentId:    this.agentId,
+      iface:      this.iface,
+      interval:   this.interval,
+      discovered: this.discovered,
+      newMacs:    this.newMacs,
+      lastScan:   this.lastScan,
+      nextScanIn: this.nextScanIn,
+      scanning:   this.scanning,
+      error:      this.error,
+    }
+  },
+
+  _notify() {
+    const snap = this._snap()
+    this._listeners.forEach(fn => fn(snap))
+  },
+
+  start(agentId, iface, interval) {
+    if (this.active) return
+    this.agentId  = agentId
+    this.iface    = iface
+    this.interval = interval
+    this.active   = true
+    this.error    = null
+    this._notify()
+    this._loop()
+  },
+
+  stop() {
+    this.active     = false
+    this.nextScanIn = null
+    this._notify()
+  },
+
+  async _scan() {
+    if (!this.agentId) return
+    this.scanning = true
+    this.error    = null
+    this._notify()
+    try {
+      const resp   = await api.issueTask(this.agentId, {
+        task_type:       'run_arp_scan',
+        payload:         { interface: this.iface, timeout: 10 },
+        timeout_seconds: 40,
+      })
+      const taskId = resp.task_id
+      let result   = null
+
+      for (let i = 0; i < 20 && this.active; i++) {
+        await sleep(2000)
+        const tasks = await api.getTasks(this.agentId)
+        const t = (Array.isArray(tasks) ? tasks : (tasks.tasks || [])).find(t => t.id === taskId)
+        if (!t) continue
+        if (t.status === 'completed') { result = t.result; break }
+        if (t.status === 'failed' || t.status === 'timeout') { this.error = t.error || t.status; break }
+      }
+
+      if (result) {
+        const hosts = result.hosts || []
+        const now   = new Date().toISOString()
+        const map   = new Map(this.discovered.map(d => [d.mac, { ...d, _seen: false }]))
+        const newlyFound = new Set()
+
+        for (const h of hosts) {
+          if (!h.mac) continue
+          if (map.has(h.mac)) {
+            const ex = map.get(h.mac)
+            ex.ip     = h.ip
+            ex.vendor = h.vendor || ex.vendor
+            ex.lastSeen = now
+            ex._seen    = true
+            ex.offline  = false
+          } else {
+            map.set(h.mac, { mac: h.mac, ip: h.ip, vendor: h.vendor || '', firstSeen: now, lastSeen: now, _seen: true, offline: false })
+          }
+          if (!this.known[h.mac]) newlyFound.add(h.mac)
+        }
+        for (const d of map.values()) { if (!d._seen) d.offline = true }
+
+        this.discovered = [...map.values()]
+        if (newlyFound.size > 0) this.newMacs = new Set([...this.newMacs, ...newlyFound])
+        this.lastScan = now
+      }
+    } catch (e) {
+      this.error = e.message || 'Scan error'
+    } finally {
+      this.scanning = false
+      this._notify()
+    }
+  },
+
+  async _loop() {
+    while (this.active) {
+      await this._scan()
+      if (!this.active) break
+      for (let i = this.interval; i > 0; i--) {
+        if (!this.active) { this.nextScanIn = null; this._notify(); return }
+        this.nextScanIn = i
+        this._notify()
+        await sleep(1000)
+      }
+      this.nextScanIn = null
+    }
+  },
+
+  markAllKnown() {
+    for (const d of this.discovered) this.known[d.mac] = { ip: d.ip, vendor: d.vendor }
+    saveKnown(this.known)
+    this.newMacs = new Set()
+    this._notify()
+  },
+
+  forgetDevice(mac) {
+    delete this.known[mac]
+    saveKnown(this.known)
+    this.newMacs    = new Set([...this.newMacs].filter(m => m !== mac))
+    this.discovered = this.discovered.filter(d => d.mac !== mac)
+    this._notify()
+  },
+}
+
+// ── Node layout ────────────────────────────────────────────────────────────────
 
 function getNodePositions(count) {
   if (count === 0) return []
@@ -45,310 +192,326 @@ function getNodePositions(count) {
   if (count <= 10) {
     const r = Math.min(cx - 70, cy - 60)
     return Array.from({ length: count }, (_, i) => {
-      const angle = (2 * Math.PI / count) * i - Math.PI / 2
-      return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) }
+      const a = (2 * Math.PI / count) * i - Math.PI / 2
+      return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) }
     })
   }
 
-  // Two rings for > 10 devices
-  const ring1Count = Math.ceil(count / 2)
-  const ring2Count = count - ring1Count
-  const positions = []
+  const r1Count = Math.ceil(count / 2), r2Count = count - r1Count
   const r1 = Math.min(cx - 70, cy - 60) * 0.55
   const r2 = Math.min(cx - 70, cy - 60)
-  for (let i = 0; i < ring1Count; i++) {
-    const a = (2 * Math.PI / ring1Count) * i - Math.PI / 2
+  const positions = []
+  for (let i = 0; i < r1Count; i++) {
+    const a = (2 * Math.PI / r1Count) * i - Math.PI / 2
     positions.push({ x: cx + r1 * Math.cos(a), y: cy + r1 * Math.sin(a) })
   }
-  for (let i = 0; i < ring2Count; i++) {
-    const a = (2 * Math.PI / ring2Count) * i - Math.PI / 2
+  for (let i = 0; i < r2Count; i++) {
+    const a = (2 * Math.PI / r2Count) * i - Math.PI / 2
     positions.push({ x: cx + r2 * Math.cos(a), y: cy + r2 * Math.sin(a) })
   }
   return positions
 }
 
-function NetworkDiagram({ discovered, newMacs, showOffline }) {
+// ── Interactive Network Diagram ────────────────────────────────────────────────
+
+function NetworkDiagram({ discovered, newMacs, showOffline, onNodeClick }) {
   const W = 700, H = 380
   const cx = W / 2, cy = H / 2
 
-  const visible = showOffline ? discovered : discovered.filter(d => !d.offline)
+  const [transform,  setTransform]  = useState({ x: 0, y: 0, scale: 1 })
+  const [isDragging, setIsDragging] = useState(false)
+  const svgRef      = useRef(null)
+  const dragRef     = useRef(null)  // { sx, sy, origX, origY, screenToSvg }
+  const dragMoved   = useRef(false)
+
+  const visible   = showOffline ? discovered : discovered.filter(d => !d.offline)
   const positions = getNodePositions(visible.length)
 
+  const onWheel = useCallback((e) => {
+    e.preventDefault()
+    const factor = e.deltaY < 0 ? 1.12 : 0.88
+    setTransform(t => ({ ...t, scale: Math.max(0.35, Math.min(5, t.scale * factor)) }))
+  }, [])
+
+  const onMouseDown = useCallback((e) => {
+    if (e.button !== 0) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const screenToSvg = W / rect.width
+    dragRef.current = { sx: e.clientX, sy: e.clientY, origX: transform.x, origY: transform.y, screenToSvg }
+    dragMoved.current = false
+    setIsDragging(true)
+  }, [transform])
+
+  const onMouseMove = useCallback((e) => {
+    if (!dragRef.current) return
+    const { sx, sy, origX, origY, screenToSvg } = dragRef.current
+    const dx = (e.clientX - sx) * screenToSvg
+    const dy = (e.clientY - sy) * screenToSvg
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved.current = true
+    setTransform(t => ({ ...t, x: origX + dx, y: origY + dy }))
+  }, [])
+
+  const onMouseUp = useCallback(() => {
+    dragRef.current = null
+    setIsDragging(false)
+  }, [])
+
+  const resetView = () => setTransform({ x: 0, y: 0, scale: 1 })
+
+  const handleNodeClick = useCallback((d) => {
+    if (!dragMoved.current) onNodeClick(d)
+  }, [onNodeClick])
+
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      style={{ width: '100%', height: '100%', display: 'block' }}
-    >
-      {/* Background */}
-      <rect width={W} height={H} fill="#0a0c10" rx={8} />
+    <div style={{ position: 'relative', userSelect: 'none' }}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: '100%', height: '100%', display: 'block', cursor: isDragging ? 'grabbing' : 'grab' }}
+        onWheel={onWheel}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
+      >
+        {/* Background */}
+        <rect width={W} height={H} fill="#0a0c10" rx={8} />
 
-      {/* Grid dots */}
-      {Array.from({ length: 12 }, (_, col) =>
-        Array.from({ length: 8 }, (_, row) => (
-          <circle
-            key={`${col}-${row}`}
-            cx={(col + 1) * (W / 13)}
-            cy={(row + 1) * (H / 9)}
-            r={1}
-            fill="#1a2030"
-          />
-        ))
-      )}
+        {/* Grid dots (outside transform — always fixed) */}
+        {Array.from({ length: 12 }, (_, col) =>
+          Array.from({ length: 8 }, (_, row) => (
+            <circle key={`${col}-${row}`}
+              cx={(col + 1) * (W / 13)} cy={(row + 1) * (H / 9)}
+              r={1} fill="#1a2030" />
+          ))
+        )}
 
-      {/* Lines from center to nodes */}
-      {visible.map((d, i) => {
-        const { x, y } = positions[i]
-        const isNew = newMacs.has(d.mac)
-        const lineColor = d.offline ? '#1e2530' : isNew ? '#22c55e' : '#1e3a5f'
-        return (
-          <line
-            key={`line-${d.mac}`}
-            x1={cx} y1={cy} x2={x} y2={y}
-            stroke={lineColor}
-            strokeWidth={isNew ? 1.5 : 1}
-            strokeOpacity={0.7}
-            strokeDasharray={d.offline ? '4 4' : undefined}
-          />
-        )
-      })}
+        {/* Zoomable/pannable content */}
+        <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
+          {/* Lines from center to nodes */}
+          {visible.map((d, i) => {
+            const { x, y } = positions[i]
+            const isNew = newMacs.has(d.mac)
+            return (
+              <line key={`line-${d.mac}`}
+                x1={cx} y1={cy} x2={x} y2={y}
+                stroke={d.offline ? '#1e2530' : isNew ? '#22c55e' : '#1e3a5f'}
+                strokeWidth={isNew ? 1.5 : 1}
+                strokeOpacity={0.7}
+                strokeDasharray={d.offline ? '4 4' : undefined}
+              />
+            )
+          })}
 
-      {/* Center gateway node */}
-      <circle cx={cx} cy={cy} r={28} fill="#0f1f3a" stroke="#06b6d4" strokeWidth={2} />
-      <circle cx={cx} cy={cy} r={22} fill="#0f1f3a" stroke="#06b6d430" strokeWidth={1} />
-      <text x={cx} y={cy - 4} textAnchor="middle" fontSize={8} fill="#06b6d4" fontFamily="monospace" fontWeight="600">GATEWAY</text>
-      <text x={cx} y={cy + 6} textAnchor="middle" fontSize={7} fill="#0e7490" fontFamily="monospace">◉ active</text>
+          {/* Gateway node */}
+          <circle cx={cx} cy={cy} r={28} fill="#0f1f3a" stroke="#06b6d4" strokeWidth={2} />
+          <circle cx={cx} cy={cy} r={22} fill="#0f1f3a" stroke="#06b6d430" strokeWidth={1} />
+          <text x={cx} y={cy - 4} textAnchor="middle" fontSize={8} fill="#06b6d4" fontFamily="monospace" fontWeight="600">GATEWAY</text>
+          <text x={cx} y={cy + 6} textAnchor="middle" fontSize={7} fill="#0e7490" fontFamily="monospace">◉ active</text>
 
-      {/* Device nodes */}
-      {visible.map((d, i) => {
-        const { x, y } = positions[i]
-        const isNew = newMacs.has(d.mac)
-        const fillColor = d.offline ? '#111827' : isNew ? '#0f2a1a' : '#0f1e2e'
-        const strokeColor = d.offline ? '#374151' : isNew ? '#22c55e' : '#1d4ed8'
-        const strokeW = isNew ? 2 : 1.5
-        const ipShort = d.ip ? d.ip.split('.').slice(-2).join('.') : '?'
-        const vendorShort = (d.vendor || '').split(' ')[0].slice(0, 8)
+          {/* Device nodes */}
+          {visible.map((d, i) => {
+            const { x, y } = positions[i]
+            const isNew      = newMacs.has(d.mac)
+            const fillColor  = d.offline ? '#111827' : isNew ? '#0f2a1a' : '#0f1e2e'
+            const strokeColor = d.offline ? '#374151' : isNew ? '#22c55e' : '#1d4ed8'
+            const ipShort    = d.ip ? d.ip.split('.').slice(-2).join('.') : '?'
+            const vendorShort = (d.vendor || '').split(' ')[0].slice(0, 8)
 
-        return (
-          <g key={d.mac}>
-            {/* Pulse ring for new devices */}
-            {isNew && (
-              <circle cx={x} cy={y} r={24} fill="none" stroke="#22c55e" strokeWidth={1} strokeOpacity={0.3} />
-            )}
-            <circle cx={x} cy={y} r={19} fill={fillColor} stroke={strokeColor} strokeWidth={strokeW} />
-            <text x={x} y={y - 2} textAnchor="middle" dominantBaseline="middle" fontSize={9} fill={d.offline ? '#4b5563' : '#e5e7eb'} fontFamily="monospace">{ipShort}</text>
-            {/* Vendor label below node */}
-            <text x={x} y={y + 30} textAnchor="middle" fontSize={7} fill="#4b5563" fontFamily="monospace">{vendorShort}</text>
-            {/* NEW badge */}
-            {isNew && (
-              <g>
-                <rect x={x + 10} y={y - 28} width={22} height={11} rx={3} fill="#166534" stroke="#22c55e" strokeWidth={0.5} />
-                <text x={x + 21} y={y - 22} textAnchor="middle" fontSize={7} fill="#4ade80" fontFamily="monospace" fontWeight="700">NEW</text>
+            return (
+              <g key={d.mac}
+                onClick={(e) => { e.stopPropagation(); handleNodeClick(d) }}
+                style={{ cursor: 'pointer' }}
+              >
+                {isNew && <circle cx={x} cy={y} r={24} fill="none" stroke="#22c55e" strokeWidth={1} strokeOpacity={0.3} />}
+                <circle cx={x} cy={y} r={19} fill={fillColor} stroke={strokeColor} strokeWidth={isNew ? 2 : 1.5} />
+                <text x={x} y={y - 2} textAnchor="middle" dominantBaseline="middle"
+                  fontSize={9} fill={d.offline ? '#4b5563' : '#e5e7eb'} fontFamily="monospace">
+                  {ipShort}
+                </text>
+                <text x={x} y={y + 30} textAnchor="middle" fontSize={7} fill="#4b5563" fontFamily="monospace">
+                  {vendorShort}
+                </text>
+                {isNew && (
+                  <g>
+                    <rect x={x + 10} y={y - 28} width={22} height={11} rx={3} fill="#166534" stroke="#22c55e" strokeWidth={0.5} />
+                    <text x={x + 21} y={y - 22} textAnchor="middle" fontSize={7} fill="#4ade80" fontFamily="monospace" fontWeight="700">NEW</text>
+                  </g>
+                )}
               </g>
-            )}
-          </g>
-        )
-      })}
+            )
+          })}
+        </g>
 
-      {/* Legend */}
-      <g transform={`translate(12, ${H - 44})`}>
-        <circle cx={6} cy={6} r={5} fill="#0f1e2e" stroke="#1d4ed8" strokeWidth={1.5} />
-        <text x={15} y={10} fontSize={9} fill="#4b5563" fontFamily="monospace">Known</text>
-        <circle cx={6} cy={22} r={5} fill="#0f2a1a" stroke="#22c55e" strokeWidth={1.5} />
-        <text x={15} y={26} fontSize={9} fill="#4b5563" fontFamily="monospace">New</text>
-        <circle cx={6} cy={38} r={5} fill="#111827" stroke="#374151" strokeWidth={1.5} />
-        <text x={15} y={42} fontSize={9} fill="#4b5563" fontFamily="monospace">Offline</text>
-      </g>
+        {/* Legend (outside transform — always visible) */}
+        <g transform={`translate(12, ${H - 44})`}>
+          <circle cx={6} cy={6}  r={5} fill="#0f1e2e" stroke="#1d4ed8" strokeWidth={1.5} />
+          <text x={15} y={10} fontSize={9} fill="#4b5563" fontFamily="monospace">Known</text>
+          <circle cx={6} cy={22} r={5} fill="#0f2a1a" stroke="#22c55e" strokeWidth={1.5} />
+          <text x={15} y={26} fontSize={9} fill="#4b5563" fontFamily="monospace">New</text>
+          <circle cx={6} cy={38} r={5} fill="#111827" stroke="#374151" strokeWidth={1.5} />
+          <text x={15} y={42} fontSize={9} fill="#4b5563" fontFamily="monospace">Offline</text>
+        </g>
 
-      {/* Empty state */}
-      {visible.length === 0 && (
-        <text x={cx} y={cy + 50} textAnchor="middle" fontSize={13} fill="#374151" fontFamily="monospace">
-          No devices discovered yet
-        </text>
-      )}
-    </svg>
+        {visible.length === 0 && (
+          <text x={cx} y={cy + 50} textAnchor="middle" fontSize={13} fill="#374151" fontFamily="monospace">
+            No devices discovered yet
+          </text>
+        )}
+      </svg>
+
+      {/* Zoom controls overlay */}
+      <div style={{ position: 'absolute', bottom: 8, right: 8, display: 'flex', gap: 4 }}>
+        {[
+          { icon: ZoomIn,  action: () => setTransform(t => ({ ...t, scale: Math.min(5, t.scale * 1.25) })) },
+          { icon: ZoomOut, action: () => setTransform(t => ({ ...t, scale: Math.max(0.35, t.scale * 0.8) })) },
+        ].map(({ icon: Icon, action }, i) => (
+          <button key={i} onClick={action} style={zoomBtn}>
+            <Icon size={12} />
+          </button>
+        ))}
+        <button onClick={resetView} title="Reset view" style={zoomBtn}>⊙</button>
+      </div>
+    </div>
+  )
+}
+
+const zoomBtn = {
+  background: '#0d1117', border: '1px solid #1e2530', borderRadius: 5,
+  color: '#6b7280', padding: '3px 7px', cursor: 'pointer', fontSize: 12,
+  display: 'flex', alignItems: 'center', lineHeight: 1,
+}
+
+// ── Device detail panel ────────────────────────────────────────────────────────
+
+function DeviceDetail({ device, onClose, isNew, onForget, onMarkKnown }) {
+  if (!device) return null
+  const rows = [
+    ['IP Address', device.ip || '—'],
+    ['MAC Address', device.mac],
+    ['Vendor', device.vendor || '—'],
+    ['Status', device.offline ? 'Offline' : 'Online'],
+    ['First seen', new Date(device.firstSeen).toLocaleString()],
+    ['Last seen', new Date(device.lastSeen).toLocaleString()],
+  ]
+
+  return (
+    <div style={{
+      position: 'absolute', top: 8, right: 8, width: 240,
+      background: '#0d1117', border: '1px solid #1e2530', borderRadius: 10,
+      boxShadow: '0 8px 32px #00000080', zIndex: 10, overflow: 'hidden',
+    }}>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '10px 14px', borderBottom: '1px solid #1e2530',
+        background: isNew ? '#0a1f0f' : '#111827',
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: isNew ? '#4ade80' : '#e5e7eb', fontFamily: 'JetBrains Mono, monospace' }}>
+          {device.ip || device.mac}
+        </span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4b5563', padding: 2, display: 'flex' }}>
+          <X size={13} />
+        </button>
+      </div>
+      <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {rows.map(([k, v]) => (
+          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontSize: 11, color: '#4b5563', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'nowrap' }}>{k}</span>
+            <span style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'JetBrains Mono, monospace', textAlign: 'right', wordBreak: 'break-all' }}>{v}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ padding: '8px 14px', borderTop: '1px solid #1e2530', display: 'flex', gap: 8 }}>
+        {isNew && (
+          <button onClick={() => { onMarkKnown(device.mac); onClose() }} style={{
+            flex: 1, padding: '5px 0', borderRadius: 5, border: '1px solid #166534',
+            background: '#0a1f0f', color: '#4ade80', fontSize: 11, cursor: 'pointer', fontWeight: 600,
+          }}>
+            Mark known
+          </button>
+        )}
+        <button onClick={() => { onForget(device.mac); onClose() }} style={{
+          flex: 1, padding: '5px 0', borderRadius: 5, border: '1px solid #2d1515',
+          background: '#1a0a0a', color: '#ef4444', fontSize: 11, cursor: 'pointer',
+        }}>
+          Remove
+        </button>
+      </div>
+    </div>
   )
 }
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function NetworkDiscoveryPage() {
-  const [agents, setAgents]               = useState([])
-  const [selectedAgent, setSelectedAgent] = useState('')
-  const [iface, setIface]                 = useState('eth0')
-  const [scanInterval, setScanInterval]   = useState(60)
-  const [monitoring, setMonitoring]       = useState(false)
-  const [scanning, setScanning]           = useState(false)
-  const [discovered, setDiscovered]       = useState([])   // [{mac, ip, vendor, firstSeen, lastSeen, offline}]
-  const [newMacs, setNewMacs]             = useState(new Set())
-  const [lastScan, setLastScan]           = useState(null)
-  const [nextScanIn, setNextScanIn]       = useState(null)
-  const [scanError, setScanError]         = useState(null)
-  const [showOffline, setShowOffline]     = useState(true)
+  // Subscribe to persistent service
+  const [svc, setSvc] = useState(() => _svc._snap())
+  useEffect(() => _svc.subscribe(setSvc), [])
 
-  // Refs to avoid stale closures in async loop
-  const loopActive        = useRef(false)
-  const selectedAgentRef  = useRef(selectedAgent)
-  const ifaceRef          = useRef(iface)
-  const scanIntervalRef   = useRef(scanInterval)
-  const knownRef          = useRef(loadKnown())
-  const discoveredRef     = useRef(discovered)
+  // Local UI state (not persisted across navigation)
+  const [agents,         setAgents]         = useState([])
+  const [selectedAgent,  setSelectedAgent]  = useState(_svc.agentId || '')
+  const [iface,          setIface]          = useState(_svc.iface || 'eth0')
+  const [scanInterval,   setScanInterval]   = useState(_svc.interval || 60)
+  const [showOffline,    setShowOffline]    = useState(true)
+  const [interfaces,     setInterfaces]     = useState([])   // from sysinfo
+  const [ifaceLoading,   setIfaceLoading]   = useState(false)
+  const [selectedDevice, setSelectedDevice] = useState(null) // diagram click
 
-  useEffect(() => { selectedAgentRef.current = selectedAgent }, [selectedAgent])
-  useEffect(() => { ifaceRef.current = iface }, [iface])
-  useEffect(() => { scanIntervalRef.current = scanInterval }, [scanInterval])
-  useEffect(() => { discoveredRef.current = discovered }, [discovered])
-
-  // Load active agents on mount
+  // Load active agents
   useEffect(() => {
     api.getDevices({ status: 'active' })
       .then(devs => {
         const list = Array.isArray(devs) ? devs : (devs.devices || [])
         setAgents(list)
-        if (list.length > 0) setSelectedAgent(list[0].id)
+        if (!selectedAgent && list.length > 0) setSelectedAgent(list[0].id)
       })
       .catch(() => {})
   }, [])
 
-  // Perform a single ARP scan and merge results
-  const performScan = useCallback(async () => {
-    const agentId = selectedAgentRef.current
-    if (!agentId) return
-
-    setScanning(true)
-    setScanError(null)
-
-    try {
-      const resp = await api.issueTask(agentId, {
-        task_type: 'run_arp_scan',
-        payload: { interface: ifaceRef.current, timeout: 10 },
-        timeout_seconds: 40,
+  // Fetch interface list from sysinfo when agent changes
+  useEffect(() => {
+    if (!selectedAgent) { setInterfaces([]); return }
+    setIfaceLoading(true)
+    api.getAllTasks({ device_id: selectedAgent, task_type: 'get_sysinfo', status: 'completed', limit: 1 })
+      .then(data => {
+        const tasks  = Array.isArray(data) ? data : (data.tasks || [])
+        const result = tasks[0]?.result
+        const ifaces = result?.interfaces
+        if (Array.isArray(ifaces) && ifaces.length > 0) {
+          const names = ifaces.map(i => (typeof i === 'string' ? i : i.name)).filter(Boolean)
+          setInterfaces(names)
+          // Pre-select if current iface not in list
+          if (names.length > 0 && !names.includes(iface)) setIface(names[0])
+        } else {
+          setInterfaces([])
+        }
       })
-      const taskId = resp.task_id
+      .catch(() => setInterfaces([]))
+      .finally(() => setIfaceLoading(false))
+  }, [selectedAgent])
 
-      // Poll for completion (max 20 attempts × 2s = 40s)
-      let result = null
-      for (let i = 0; i < 20 && loopActive.current; i++) {
-        await sleep(2000)
-        const tasks = await api.getTasks(agentId)
-        const t = (Array.isArray(tasks) ? tasks : (tasks.tasks || [])).find(t => t.id === taskId)
-        if (!t) continue
-        if (t.status === 'completed') { result = t.result; break }
-        if (t.status === 'failed' || t.status === 'timeout') {
-          setScanError(t.error || t.status)
-          break
-        }
-      }
-
-      if (result) {
-        const hosts = result.hosts || []
-        const now = new Date().toISOString()
-        const known = knownRef.current
-        const newlyFound = new Set()
-
-        setDiscovered(prev => {
-          const map = new Map(prev.map(d => [d.mac, { ...d, _seen: false }]))
-
-          for (const h of hosts) {
-            if (!h.mac) continue
-            if (map.has(h.mac)) {
-              const existing = map.get(h.mac)
-              existing.ip = h.ip
-              existing.vendor = h.vendor || existing.vendor
-              existing.lastSeen = now
-              existing._seen = true
-              existing.offline = false
-            } else {
-              map.set(h.mac, {
-                mac: h.mac, ip: h.ip, vendor: h.vendor || '',
-                firstSeen: now, lastSeen: now, _seen: true, offline: false,
-              })
-            }
-            if (!known[h.mac]) newlyFound.add(h.mac)
-          }
-
-          // Mark unseen hosts as offline (not gone — they may return)
-          for (const d of map.values()) {
-            if (!d._seen) d.offline = true
-          }
-
-          return [...map.values()]
-        })
-
-        if (newlyFound.size > 0) {
-          setNewMacs(prev => new Set([...prev, ...newlyFound]))
-        }
-
-        setLastScan(now)
-      }
-    } catch (e) {
-      setScanError(e.message || 'Scan error')
-    } finally {
-      setScanning(false)
-    }
-  }, [])
-
-  // Monitoring loop
-  const runLoop = useCallback(async () => {
-    while (loopActive.current) {
-      await performScan()
-      if (!loopActive.current) break
-
-      // Countdown to next scan
-      const interval = scanIntervalRef.current
-      for (let i = interval; i > 0; i--) {
-        if (!loopActive.current) { setNextScanIn(null); return }
-        setNextScanIn(i)
-        await sleep(1000)
-      }
-      setNextScanIn(null)
-    }
-  }, [performScan])
-
-  const startMonitoring = useCallback(() => {
-    if (!selectedAgentRef.current) return
-    loopActive.current = true
-    setMonitoring(true)
-    setNextScanIn(null)
-    runLoop()
-  }, [runLoop])
-
-  const stopMonitoring = useCallback(() => {
-    loopActive.current = false
-    setMonitoring(false)
-    setNextScanIn(null)
-  }, [])
-
-  // Cleanup on unmount
-  useEffect(() => () => { loopActive.current = false }, [])
-
-  const markAllKnown = () => {
-    const known = knownRef.current
-    for (const d of discovered) {
-      known[d.mac] = { ip: d.ip, vendor: d.vendor }
-    }
-    knownRef.current = known
-    saveKnown(known)
-    setNewMacs(new Set())
+  const startMonitoring = () => {
+    if (!selectedAgent) return
+    _svc.start(selectedAgent, iface, scanInterval)
   }
 
-  const forgetDevice = (mac) => {
-    const known = knownRef.current
-    delete known[mac]
-    knownRef.current = known
-    saveKnown(known)
-    setNewMacs(prev => { const s = new Set(prev); s.delete(mac); return s })
-    setDiscovered(prev => prev.filter(d => d.mac !== mac))
+  const stopMonitoring = () => _svc.stop()
+
+  const markOneKnown = (mac) => {
+    const d = svc.discovered.find(d => d.mac === mac)
+    if (d) { _svc.known[d.mac] = { ip: d.ip, vendor: d.vendor }; saveKnown(_svc.known) }
+    _svc.newMacs = new Set([..._svc.newMacs].filter(m => m !== mac))
+    _svc._notify()
   }
 
+  const { active, discovered, newMacs, lastScan, nextScanIn, scanning, error } = svc
   const online  = discovered.filter(d => !d.offline)
   const offline = discovered.filter(d => d.offline)
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes pulse-ring { 0% { r: 19; opacity: 0.6; } 100% { r: 28; opacity: 0; } }
-      `}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -364,9 +527,18 @@ export default function NetworkDiscoveryPage() {
             {newMacs.size} new device{newMacs.size !== 1 ? 's' : ''}
           </span>
         )}
+        {active && (
+          <span style={{
+            background: '#0a1a2a', color: '#06b6d4', border: '1px solid #0e4260',
+            borderRadius: 9999, padding: '2px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5,
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#06b6d4', display: 'inline-block' }} />
+            Background active
+          </span>
+        )}
       </div>
       <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 28 }}>
-        Continuously scan your network for devices. New arrivals are highlighted automatically.
+        Continuously scan your network for devices. Monitoring continues in the background while you navigate elsewhere.
       </p>
 
       {/* Controls bar */}
@@ -375,18 +547,14 @@ export default function NetworkDiscoveryPage() {
         padding: '14px 18px', marginBottom: 20,
         display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap',
       }}>
-        {/* Agent select */}
+        {/* Agent */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Agent</label>
+          <label style={labelStyle}>Agent</label>
           <select
             value={selectedAgent}
             onChange={e => setSelectedAgent(e.target.value)}
-            disabled={monitoring}
-            style={{
-              background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-              color: '#e5e7eb', padding: '6px 10px', fontSize: 13,
-              fontFamily: 'JetBrains Mono, monospace', minWidth: 200, cursor: monitoring ? 'not-allowed' : 'pointer',
-            }}
+            disabled={active}
+            style={{ ...selectStyle, minWidth: 200, cursor: active ? 'not-allowed' : 'pointer' }}
           >
             <option value="">— select active device —</option>
             {agents.map(d => (
@@ -395,58 +563,59 @@ export default function NetworkDiscoveryPage() {
           </select>
         </div>
 
-        {/* Interface */}
+        {/* Interface — dropdown if sysinfo available, text fallback */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Interface</label>
-          <input
-            value={iface}
-            onChange={e => setIface(e.target.value)}
-            disabled={monitoring}
-            style={{
-              background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-              color: '#e5e7eb', padding: '6px 10px', fontSize: 13,
-              fontFamily: 'JetBrains Mono, monospace', width: 90,
-              cursor: monitoring ? 'not-allowed' : 'text',
-            }}
-          />
+          <label style={labelStyle}>
+            Interface {ifaceLoading && <Loader2 size={10} style={{ display: 'inline', animation: 'spin 1s linear infinite', marginLeft: 4 }} />}
+          </label>
+          {interfaces.length > 0 ? (
+            <select
+              value={iface}
+              onChange={e => setIface(e.target.value)}
+              disabled={active}
+              style={{ ...selectStyle, width: 130, cursor: active ? 'not-allowed' : 'pointer' }}
+            >
+              {interfaces.map(name => <option key={name} value={name}>{name}</option>)}
+            </select>
+          ) : (
+            <input
+              value={iface}
+              onChange={e => setIface(e.target.value)}
+              disabled={active}
+              placeholder="eth0"
+              style={{ ...inputStyle, width: 90, cursor: active ? 'not-allowed' : 'text' }}
+            />
+          )}
         </div>
 
         {/* Scan interval */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Interval</label>
+          <label style={labelStyle}>Interval</label>
           <select
             value={scanInterval}
             onChange={e => setScanInterval(Number(e.target.value))}
-            disabled={monitoring}
-            style={{
-              background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-              color: '#e5e7eb', padding: '6px 10px', fontSize: 13,
-              fontFamily: 'JetBrains Mono, monospace', cursor: monitoring ? 'not-allowed' : 'pointer',
-            }}
+            disabled={active}
+            style={{ ...selectStyle, cursor: active ? 'not-allowed' : 'pointer' }}
           >
-            {SCAN_INTERVALS.map(i => (
-              <option key={i.value} value={i.value}>{i.label}</option>
-            ))}
+            {SCAN_INTERVALS.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
           </select>
         </div>
 
         {/* Start / Stop */}
         <button
-          onClick={monitoring ? stopMonitoring : startMonitoring}
+          onClick={active ? stopMonitoring : startMonitoring}
           disabled={!selectedAgent}
           style={{
             display: 'flex', alignItems: 'center', gap: 7,
             padding: '7px 16px', borderRadius: 7, border: 'none',
             cursor: selectedAgent ? 'pointer' : 'not-allowed',
             fontWeight: 700, fontSize: 13,
-            background: monitoring ? '#450a0a' : '#06b6d4',
-            color: monitoring ? '#fca5a5' : '#000f14',
+            background: active ? '#450a0a' : '#06b6d4',
+            color: active ? '#fca5a5' : '#000f14',
             transition: 'all 0.15s',
           }}
         >
-          {monitoring
-            ? <><Square size={14} /> Stop</>
-            : <><Play size={14} /> Start Monitoring</>}
+          {active ? <><Square size={14} /> Stop</> : <><Play size={14} /> Start Monitoring</>}
         </button>
 
         {/* Status indicators */}
@@ -462,9 +631,9 @@ export default function NetworkDiscoveryPage() {
           {nextScanIn !== null && !scanning && (
             <span style={{ color: '#374151' }}>Next in {nextScanIn}s</span>
           )}
-          {scanError && (
+          {error && (
             <span style={{ color: '#ef4444', maxWidth: 200, wordBreak: 'break-word' }}>
-              <AlertTriangle size={11} style={{ display: 'inline', marginRight: 3 }} />{scanError}
+              <AlertTriangle size={11} style={{ display: 'inline', marginRight: 3 }} />{error}
             </span>
           )}
         </div>
@@ -479,9 +648,7 @@ export default function NetworkDiscoveryPage() {
             { label: 'Offline',          value: offline.length,    color: '#6b7280' },
             { label: 'New devices',      value: newMacs.size,      color: '#f59e0b' },
           ].map(s => (
-            <div key={s.label} style={{
-              background: '#0d1117', border: '1px solid #1e2530', borderRadius: 8, padding: '12px 16px',
-            }}>
+            <div key={s.label} style={{ background: '#0d1117', border: '1px solid #1e2530', borderRadius: 8, padding: '12px 16px' }}>
               <div style={{ fontSize: 24, fontWeight: 700, color: s.color, fontFamily: 'JetBrains Mono, monospace' }}>{s.value}</div>
               <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
             </div>
@@ -501,15 +668,34 @@ export default function NetworkDiscoveryPage() {
               <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 Network Map
               </span>
-              <button
-                onClick={() => setShowOffline(v => !v)}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#4b5563' }}
-              >
-                {showOffline ? <EyeOff size={12} /> : <Eye size={12} />}
-                {showOffline ? 'Hide offline' : 'Show offline'}
-              </button>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: '#374151' }}>Scroll to zoom · Drag to pan · Click node for details</span>
+                <button
+                  onClick={() => setShowOffline(v => !v)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#4b5563' }}
+                >
+                  {showOffline ? <EyeOff size={12} /> : <Eye size={12} />}
+                  {showOffline ? 'Hide offline' : 'Show offline'}
+                </button>
+              </div>
             </div>
-            <NetworkDiagram discovered={discovered} newMacs={newMacs} showOffline={showOffline} />
+            <div style={{ position: 'relative' }}>
+              <NetworkDiagram
+                discovered={discovered}
+                newMacs={newMacs}
+                showOffline={showOffline}
+                onNodeClick={setSelectedDevice}
+              />
+              {selectedDevice && (
+                <DeviceDetail
+                  device={selectedDevice}
+                  isNew={newMacs.has(selectedDevice.mac)}
+                  onClose={() => setSelectedDevice(null)}
+                  onForget={(mac) => _svc.forgetDevice(mac)}
+                  onMarkKnown={markOneKnown}
+                />
+              )}
+            </div>
           </div>
 
           {/* Device table */}
@@ -523,14 +709,14 @@ export default function NetworkDiscoveryPage() {
               </span>
               {newMacs.size > 0 && (
                 <button
-                  onClick={markAllKnown}
+                  onClick={() => _svc.markAllKnown()}
                   style={{ fontSize: 11, color: '#22c55e', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                 >
                   <CheckCircle size={11} /> Mark all known
                 </button>
               )}
             </div>
-            <div style={{ overflowY: 'auto', maxHeight: 360 }}>
+            <div style={{ overflowY: 'auto', maxHeight: 380 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
                 <thead>
                   <tr style={{ position: 'sticky', top: 0, background: '#0d1117' }}>
@@ -541,20 +727,17 @@ export default function NetworkDiscoveryPage() {
                 </thead>
                 <tbody>
                   {[...discovered]
-                    .sort((a, b) => (a.offline ? 1 : 0) - (b.offline ? 1 : 0) || a.ip?.localeCompare(b.ip))
+                    .sort((a, b) => (a.offline ? 1 : 0) - (b.offline ? 1 : 0) || (a.ip || '').localeCompare(b.ip || ''))
                     .map(d => {
                       const isNew = newMacs.has(d.mac)
                       return (
-                        <tr key={d.mac} style={{
-                          borderBottom: '1px solid #0a0c0f',
-                          background: isNew ? '#0a1f0f' : 'transparent',
-                        }}>
+                        <tr
+                          key={d.mac}
+                          onClick={() => setSelectedDevice(d)}
+                          style={{ borderBottom: '1px solid #0a0c0f', background: isNew ? '#0a1f0f' : 'transparent', cursor: 'pointer' }}
+                        >
                           <td style={{ padding: '6px 10px' }}>
-                            <span style={{
-                              fontSize: 16,
-                              color: d.offline ? '#374151' : isNew ? '#22c55e' : '#1d4ed8',
-                              lineHeight: 1,
-                            }}>●</span>
+                            <span style={{ fontSize: 16, color: d.offline ? '#374151' : isNew ? '#22c55e' : '#1d4ed8', lineHeight: 1 }}>●</span>
                           </td>
                           <td style={{ padding: '6px 10px', color: d.offline ? '#4b5563' : '#e5e7eb' }}>{d.ip}</td>
                           <td style={{ padding: '6px 10px', color: '#6b7280', fontSize: 11 }}>{d.mac}</td>
@@ -564,8 +747,8 @@ export default function NetworkDiscoveryPage() {
                           </td>
                           <td style={{ padding: '6px 8px' }}>
                             <button
-                              onClick={() => forgetDevice(d.mac)}
-                              title="Remove from list"
+                              onClick={(e) => { e.stopPropagation(); _svc.forgetDevice(d.mac) }}
+                              title="Remove"
                               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#374151', padding: 2 }}
                             >
                               <Trash2 size={11} />
@@ -580,7 +763,6 @@ export default function NetworkDiscoveryPage() {
           </div>
         </div>
       ) : (
-        /* Empty state */
         <div style={{
           textAlign: 'center', padding: '70px 0', color: '#374151',
           border: '1px dashed #1e2530', borderRadius: 10,
@@ -594,4 +776,22 @@ export default function NetworkDiscoveryPage() {
       )}
     </div>
   )
+}
+
+// ── Shared style tokens ────────────────────────────────────────────────────────
+
+const labelStyle = {
+  fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em',
+}
+
+const selectStyle = {
+  background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
+  color: '#e5e7eb', padding: '6px 10px', fontSize: 13,
+  fontFamily: 'JetBrains Mono, monospace', outline: 'none',
+}
+
+const inputStyle = {
+  background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
+  color: '#e5e7eb', padding: '6px 10px', fontSize: 13,
+  fontFamily: 'JetBrains Mono, monospace', outline: 'none',
 }

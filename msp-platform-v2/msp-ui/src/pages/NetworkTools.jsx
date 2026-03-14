@@ -23,7 +23,7 @@ const NET_TASKS = [
     color: '#06b6d4',
     defaultPayload: { interface: 'eth0', timeout: 10 },
     fields: [
-      { key: 'interface', label: 'Interface', type: 'text', placeholder: 'eth0' },
+      { key: 'interface', label: 'Interface', type: 'interface', placeholder: 'eth0' },
       { key: 'timeout',   label: 'Timeout (seconds)', type: 'number', min: 1, max: 60 },
     ],
     renderResult: ArpResult,
@@ -63,7 +63,7 @@ const NET_TASKS = [
     color: '#f97316',
     defaultPayload: { interface: 'eth0', duration: 35 },
     fields: [
-      { key: 'interface', label: 'Interface', type: 'text', placeholder: 'eth0' },
+      { key: 'interface', label: 'Interface', type: 'interface', placeholder: 'eth0' },
       { key: 'duration',  label: 'Listen duration (seconds)', type: 'number', min: 10, max: 120 },
     ],
     renderResult: LldpResult,
@@ -298,7 +298,7 @@ function KV({ k, v }) {
 
 // ── Payload form ──────────────────────────────────────────────────────────────
 
-function PayloadForm({ task, payload, onChange }) {
+function PayloadForm({ task, payload, onChange, interfaces }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {task.fields.map(f => {
@@ -314,6 +314,30 @@ function PayloadForm({ task, payload, onChange }) {
             />
           </label>
         )
+
+        if (f.type === 'interface') return (
+          <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 12, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            {interfaces && interfaces.length > 0 ? (
+              <select
+                value={payload[f.key] ?? ''}
+                onChange={e => onChange({ ...payload, [f.key]: e.target.value })}
+                style={{ background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6, color: '#e5e7eb', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer' }}
+              >
+                {interfaces.map(name => <option key={name} value={name}>{name}</option>)}
+              </select>
+            ) : (
+              <input
+                type="text"
+                placeholder={f.placeholder || 'eth0'}
+                value={payload[f.key] ?? ''}
+                onChange={e => onChange({ ...payload, [f.key]: e.target.value })}
+                style={{ background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6, color: '#e5e7eb', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}
+              />
+            )}
+          </label>
+        )
+
         return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 12, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
@@ -334,7 +358,7 @@ function PayloadForm({ task, payload, onChange }) {
 
 // ── Task panel ────────────────────────────────────────────────────────────────
 
-function TaskPanel({ task, deviceId }) {
+function TaskPanel({ task, deviceId, interfaces }) {
   const [expanded, setExpanded] = useState(false)
   const [payload, setPayload]   = useState({ ...task.defaultPayload })
   const [running, setRunning]   = useState(false)
@@ -343,6 +367,19 @@ function TaskPanel({ task, deviceId }) {
   const pollRef = useRef(null)
   const Icon = task.icon
   const ResultRenderer = task.renderResult
+
+  // When interface list arrives, update payload for interface fields if still on default
+  useEffect(() => {
+    const hasIfaceField = task.fields.some(f => f.type === 'interface')
+    if (!hasIfaceField || !interfaces || interfaces.length === 0) return
+    setPayload(prev => {
+      const cur = prev.interface
+      if (!cur || cur === 'eth0' || !interfaces.includes(cur)) {
+        return { ...prev, interface: interfaces[0] }
+      }
+      return prev
+    })
+  }, [interfaces, task.fields])
 
   const launch = useCallback(async () => {
     if (!deviceId) { setError('Select a device first'); return }
@@ -401,7 +438,7 @@ function TaskPanel({ task, deviceId }) {
               ℹ️ {task.note}
             </div>
           )}
-          <PayloadForm task={task} payload={payload} onChange={setPayload} />
+          <PayloadForm task={task} payload={payload} onChange={setPayload} interfaces={interfaces} />
           <button onClick={launch} disabled={running} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             padding: '9px 20px', borderRadius: 8, border: 'none', cursor: running ? 'not-allowed' : 'pointer',
@@ -423,16 +460,36 @@ function TaskPanel({ task, deviceId }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function NetworkToolsPage() {
-  const [devices, setDevices]   = useState([])
-  const [deviceId, setDeviceId] = useState('')
-  const [loading, setLoading]   = useState(true)
+  const [devices,    setDevices]    = useState([])
+  const [deviceId,   setDeviceId]   = useState('')
+  const [loading,    setLoading]    = useState(true)
+  const [interfaces, setInterfaces] = useState([])
 
   useEffect(() => {
     api.getDevices({ status: 'active' })
-      .then(d => { setDevices(d); if (d.length === 1) setDeviceId(d[0].id) })
+      .then(data => {
+        const d = Array.isArray(data) ? data : (data.devices || [])
+        setDevices(d)
+        if (d.length === 1) setDeviceId(d[0].id)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (!deviceId) { setInterfaces([]); return }
+    api.getAllTasks({ device_id: deviceId, task_type: 'get_sysinfo', status: 'completed', limit: 1 })
+      .then(data => {
+        const tasks  = Array.isArray(data) ? data : (data.tasks || [])
+        const ifaces = tasks[0]?.result?.interfaces
+        if (Array.isArray(ifaces) && ifaces.length > 0) {
+          setInterfaces(ifaces.map(i => (typeof i === 'string' ? i : i.name)).filter(Boolean))
+        } else {
+          setInterfaces([])
+        }
+      })
+      .catch(() => setInterfaces([]))
+  }, [deviceId])
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: 900, margin: '0 auto' }}>
@@ -482,7 +539,7 @@ export default function NetworkToolsPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {NET_TASKS.map(task => (
-            <TaskPanel key={task.id} task={task} deviceId={deviceId} />
+            <TaskPanel key={task.id} task={task} deviceId={deviceId} interfaces={interfaces} />
           ))}
         </div>
       )}
