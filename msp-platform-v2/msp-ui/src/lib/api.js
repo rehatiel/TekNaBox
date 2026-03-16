@@ -99,6 +99,7 @@ export const api = {
     return get(`/v1/tasks${q ? `?${q}` : ''}`)
   },
   issueTask:     (deviceId, data) => post(`/v1/devices/${deviceId}/tasks`, data),
+  getTask:       (taskId)         => get(`/v1/tasks/${taskId}`),
   getTaskTypes:  () => get('/v1/task-types'),
 
   // ── Releases ─────────────────────────────────────────────────────────────────
@@ -146,6 +147,7 @@ export const api = {
   toggleDeviceKnown:       (mac)           => patch(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/known`, {}),
   setDeviceLabel:          (mac, label)    => patch(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/label`, { label }),
   deleteDiscoveredDevice:  (mac)           => del(`/v1/network/discovered-devices/${encodeURIComponent(mac)}`),
+  updateDevicePorts:       (mac, ports)    => patch(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/ports`, { open_ports: ports }),
 
   // ── Generic helpers ───────────────────────────────────────────────────────
   get:    (path) => get(path),

@@ -3,11 +3,11 @@
  * Populated automatically when the Network Discovery monitoring is running.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '../lib/api'
 import {
   History, RefreshCw, CheckCircle, Trash2, X, Pencil, Check,
-  Search, Filter, Eye, EyeOff,
+  Search, Filter, Eye, EyeOff, ScanLine, ChevronDown, ChevronRight,
 } from 'lucide-react'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -26,6 +26,14 @@ function timeSince(iso) {
   if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
   if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`
   return `${Math.floor(secs / 86400)}d ago`
+}
+
+// Known service names for common ports
+const COMMON_PORTS = {
+  21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS',
+  80: 'HTTP', 110: 'POP3', 143: 'IMAP', 443: 'HTTPS', 445: 'SMB',
+  3389: 'RDP', 5900: 'VNC', 8080: 'HTTP-alt', 8443: 'HTTPS-alt',
+  3306: 'MySQL', 5432: 'PostgreSQL', 6379: 'Redis', 27017: 'MongoDB',
 }
 
 // ── Inline label editor ────────────────────────────────────────────────────────
@@ -80,6 +88,138 @@ const iconBtn = {
   display: 'flex', alignItems: 'center',
 }
 
+// ── Port Scan Modal ────────────────────────────────────────────────────────────
+
+function ScanModal({ device, onClose, onStart }) {
+  const [portRange, setPortRange] = useState('1-1024')
+  const [error, setError]         = useState('')
+
+  const start = () => {
+    const val = portRange.trim()
+    if (!val) { setError('Enter a port range'); return }
+    if (!device.ip) { setError('Device has no IP address'); return }
+    if (!device.source_device_id) { setError('No source agent available — run a network scan first'); return }
+    setError('')
+    onStart(device, val)
+    onClose()
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{
+        background: '#0d1117', border: '1px solid #1e2530', borderRadius: 12,
+        padding: '24px 28px', width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          <ScanLine size={18} color="#06b6d4" />
+          <h2 style={{ margin: 0, fontSize: 16, color: '#f3f4f6', fontFamily: 'Syne, sans-serif' }}>
+            Port Scan
+          </h2>
+          <button onClick={onClose} style={{ ...iconBtn, marginLeft: 'auto' }}>
+            <X size={14} color="#6b7280" />
+          </button>
+        </div>
+
+        <div style={{ fontSize: 12, color: '#4b5563', marginBottom: 16, fontFamily: 'JetBrains Mono, monospace' }}>
+          Target: <span style={{ color: '#06b6d4' }}>{device.ip || '—'}</span>
+          {device.label && <span style={{ color: '#6b7280' }}> ({device.label})</span>}
+        </div>
+
+        <label style={{ display: 'block', fontSize: 11, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Port Range
+        </label>
+        <input
+          autoFocus
+          value={portRange}
+          onChange={e => setPortRange(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && start()}
+          placeholder="e.g. 1-1024 or 22,80,443"
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
+            color: '#e5e7eb', padding: '8px 10px', fontSize: 12,
+            fontFamily: 'JetBrains Mono, monospace', outline: 'none', marginBottom: 8,
+          }}
+        />
+        <div style={{ fontSize: 11, color: '#374151', marginBottom: 16 }}>
+          Examples: <code style={{ color: '#4b5563' }}>1-1024</code> &nbsp;·&nbsp;
+          <code style={{ color: '#4b5563' }}>22,80,443,3389</code> &nbsp;·&nbsp;
+          <code style={{ color: '#4b5563' }}>1-65535</code>
+        </div>
+
+        {error && (
+          <div style={{ fontSize: 12, color: '#f87171', marginBottom: 12 }}>{error}</div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{
+            background: 'none', border: '1px solid #1e2530', borderRadius: 6,
+            color: '#4b5563', padding: '6px 14px', cursor: 'pointer', fontSize: 12,
+          }}>
+            Cancel
+          </button>
+          <button onClick={start} style={{
+            background: '#0e4f63', border: '1px solid #06b6d4', borderRadius: 6,
+            color: '#06b6d4', padding: '6px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+          }}>
+            Start Scan
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Ports expanded row ─────────────────────────────────────────────────────────
+
+function PortsExpanded({ device, colSpan }) {
+  const ports = device.open_ports || []
+  return (
+    <tr>
+      <td colSpan={colSpan} style={{ padding: '0 12px 12px 40px', background: '#090b0e' }}>
+        <div style={{
+          border: '1px solid #1e2530', borderRadius: 8, padding: '12px 16px',
+          background: '#0a0c0f',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <ScanLine size={12} color="#06b6d4" />
+            <span style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Open Ports
+            </span>
+            <span style={{ fontSize: 11, color: '#374151', marginLeft: 4 }}>
+              · scanned {timeSince(device.ports_scanned_at)}
+            </span>
+          </div>
+          {ports.length === 0 ? (
+            <span style={{ fontSize: 12, color: '#374151', fontFamily: 'JetBrains Mono, monospace' }}>
+              No open ports found
+            </span>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ports.map(port => (
+                <span key={port} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  background: '#0d1117', border: '1px solid #1e2530', borderRadius: 5,
+                  padding: '3px 8px', fontSize: 11, fontFamily: 'JetBrains Mono, monospace',
+                  color: '#e5e7eb',
+                }}>
+                  <span style={{ color: '#06b6d4', fontWeight: 600 }}>{port}</span>
+                  {COMMON_PORTS[port] && (
+                    <span style={{ color: '#4b5563' }}>{COMMON_PORTS[port]}</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function NetworkDeviceHistoryPage() {
@@ -89,6 +229,11 @@ export default function NetworkDeviceHistoryPage() {
   const [search,       setSearch]       = useState('')
   const [showUnknown,  setShowUnknown]  = useState(true)
   const [showKnown,    setShowKnown]    = useState(true)
+  const [scanModal,    setScanModal]    = useState(null)  // device to scan
+  const [scanning,     setScanning]     = useState({})   // mac -> taskId
+  const [expanded,     setExpanded]     = useState(null) // mac of expanded ports row
+
+  const pollTimers = useRef({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -104,6 +249,13 @@ export default function NetworkDeviceHistoryPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Clean up poll timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(pollTimers.current).forEach(t => clearTimeout(t))
+    }
+  }, [])
 
   const toggleKnown = async (mac) => {
     try {
@@ -132,6 +284,48 @@ export default function NetworkDeviceHistoryPage() {
     }
   }
 
+  // ── Port scan flow ──────────────────────────────────────────────────────────
+
+  const startPortScan = async (device, portRange) => {
+    try {
+      const task = await api.issueTask(device.source_device_id, {
+        task_type: 'run_port_scan',
+        payload: { target: device.ip, ports: portRange, timeout: 1, concurrency: 100 },
+      })
+      setScanning(prev => ({ ...prev, [device.mac]: task.id }))
+      scheduleTaskPoll(device.mac, task.id)
+    } catch (e) {
+      setError(`Failed to start scan: ${e.message}`)
+    }
+  }
+
+  const scheduleTaskPoll = (mac, taskId) => {
+    pollTimers.current[mac] = setTimeout(() => pollTask(mac, taskId), 2000)
+  }
+
+  const pollTask = async (mac, taskId) => {
+    try {
+      const task = await api.getTask(taskId)
+      if (task.status === 'completed') {
+        const ports = task.result?.open_ports ?? []
+        const updated = await api.updateDevicePorts(mac, ports)
+        setDevices(prev => prev.map(d => d.mac === mac ? updated : d))
+        setScanning(prev => { const n = { ...prev }; delete n[mac]; return n })
+        setExpanded(mac)  // auto-expand to show results
+      } else if (task.status === 'failed') {
+        setError(`Port scan failed: ${task.error || 'unknown error'}`)
+        setScanning(prev => { const n = { ...prev }; delete n[mac]; return n })
+      } else {
+        // Still running — poll again
+        scheduleTaskPoll(mac, taskId)
+      }
+    } catch (e) {
+      setScanning(prev => { const n = { ...prev }; delete n[mac]; return n })
+    }
+  }
+
+  // ── Filtering ───────────────────────────────────────────────────────────────
+
   const q = search.trim().toLowerCase()
   const filtered = devices.filter(d => {
     if (!showUnknown && !d.known) return false
@@ -146,10 +340,19 @@ export default function NetworkDeviceHistoryPage() {
   const total   = devices.length
   const known   = devices.filter(d => d.known).length
   const unknown = total - known
+  const COL_COUNT = 9  // total columns in table
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {scanModal && (
+        <ScanModal
+          device={scanModal}
+          onClose={() => setScanModal(null)}
+          onStart={startPortScan}
+        />
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -252,7 +455,7 @@ export default function NetworkDeviceHistoryPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
               <thead>
                 <tr style={{ background: '#0a0c0f', borderBottom: '1px solid #1e2530' }}>
-                  {['', 'IP', 'MAC', 'Vendor', 'Label', 'First seen', 'Last seen', ''].map((h, i) => (
+                  {['', 'IP', 'MAC', 'Vendor', 'Label', 'Ports', 'First seen', 'Last seen', ''].map((h, i) => (
                     <th key={i} style={{
                       textAlign: 'left', padding: '8px 12px', color: '#374151',
                       fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em',
@@ -262,43 +465,98 @@ export default function NetworkDeviceHistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(d => (
-                  <tr key={d.mac} style={{ borderBottom: '1px solid #0a0c0f' }}>
-                    {/* Status / known dot */}
-                    <td style={{ padding: '8px 12px', width: 28 }}>
-                      <button
-                        onClick={() => toggleKnown(d.mac)}
-                        title={d.known ? 'Mark unknown' : 'Mark known'}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
-                      >
-                        {d.known
-                          ? <CheckCircle size={14} color="#22c55e" />
-                          : <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid #374151', display: 'inline-block', background: '#0d1117' }} />
-                        }
-                      </button>
-                    </td>
+                {filtered.map(d => {
+                  const isScanning  = !!scanning[d.mac]
+                  const isExpanded  = expanded === d.mac
+                  const hasPortData = d.open_ports !== null && d.open_ports !== undefined
+                  const portCount   = hasPortData ? d.open_ports.length : null
 
-                    <td style={{ padding: '8px 12px', color: '#e5e7eb' }}>{d.ip || '—'}</td>
-                    <td style={{ padding: '8px 12px', color: '#6b7280', fontSize: 11 }}>{d.mac}</td>
-                    <td style={{ padding: '8px 12px', color: '#4b5563', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.vendor || '—'}</td>
-                    <td style={{ padding: '8px 12px', minWidth: 150 }}>
-                      <LabelCell device={d} onSave={saveLabel} />
-                    </td>
-                    <td style={{ padding: '8px 12px', color: '#374151', whiteSpace: 'nowrap' }} title={fmt(d.first_seen)}>{timeSince(d.first_seen)}</td>
-                    <td style={{ padding: '8px 12px', color: '#374151', whiteSpace: 'nowrap' }} title={fmt(d.last_seen)}>{timeSince(d.last_seen)}</td>
-                    <td style={{ padding: '8px 8px', width: 32 }}>
-                      <button
-                        onClick={() => remove(d.mac)}
-                        title="Remove from history"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1e2530', padding: 2, display: 'flex', alignItems: 'center' }}
-                        onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                        onMouseLeave={e => e.currentTarget.style.color = '#1e2530'}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                  return [
+                    <tr key={d.mac} style={{ borderBottom: isExpanded ? 'none' : '1px solid #0a0c0f' }}>
+                      {/* Status / known dot */}
+                      <td style={{ padding: '8px 12px', width: 28 }}>
+                        <button
+                          onClick={() => toggleKnown(d.mac)}
+                          title={d.known ? 'Mark unknown' : 'Mark known'}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
+                        >
+                          {d.known
+                            ? <CheckCircle size={14} color="#22c55e" />
+                            : <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid #374151', display: 'inline-block', background: '#0d1117' }} />
+                          }
+                        </button>
+                      </td>
+
+                      <td style={{ padding: '8px 12px', color: '#e5e7eb' }}>{d.ip || '—'}</td>
+                      <td style={{ padding: '8px 12px', color: '#6b7280', fontSize: 11 }}>{d.mac}</td>
+                      <td style={{ padding: '8px 12px', color: '#4b5563', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.vendor || '—'}</td>
+                      <td style={{ padding: '8px 12px', minWidth: 150 }}>
+                        <LabelCell device={d} onSave={saveLabel} />
+                      </td>
+
+                      {/* Ports cell */}
+                      <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', width: 110 }}>
+                        {isScanning ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#06b6d4', fontSize: 11 }}>
+                            <RefreshCw size={10} style={{ animation: 'spin 1s linear infinite' }} />
+                            Scanning…
+                          </span>
+                        ) : hasPortData ? (
+                          <button
+                            onClick={() => setExpanded(isExpanded ? null : d.mac)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 4,
+                              background: portCount > 0 ? '#0e2a14' : '#0a0c0f',
+                              border: `1px solid ${portCount > 0 ? '#166534' : '#1e2530'}`,
+                              borderRadius: 5, padding: '2px 7px', cursor: 'pointer',
+                              color: portCount > 0 ? '#22c55e' : '#374151', fontSize: 11,
+                            }}
+                          >
+                            {portCount > 0 ? portCount : 'none'}
+                            {portCount > 0 && <span style={{ color: '#4b5563' }}>open</span>}
+                            {isExpanded
+                              ? <ChevronDown size={9} />
+                              : <ChevronRight size={9} />
+                            }
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => d.source_device_id && d.ip ? setScanModal(d) : null}
+                            title={!d.source_device_id ? 'No source agent — run a network scan first' : !d.ip ? 'No IP address' : 'Scan open ports'}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 4,
+                              background: 'none', border: '1px solid #1e2530', borderRadius: 5,
+                              padding: '2px 7px', cursor: d.source_device_id && d.ip ? 'pointer' : 'not-allowed',
+                              color: d.source_device_id && d.ip ? '#4b5563' : '#1e2530', fontSize: 11,
+                              opacity: d.source_device_id && d.ip ? 1 : 0.4,
+                            }}
+                          >
+                            <ScanLine size={9} />
+                            Scan
+                          </button>
+                        )}
+                      </td>
+
+                      <td style={{ padding: '8px 12px', color: '#374151', whiteSpace: 'nowrap' }} title={fmt(d.first_seen)}>{timeSince(d.first_seen)}</td>
+                      <td style={{ padding: '8px 12px', color: '#374151', whiteSpace: 'nowrap' }} title={fmt(d.last_seen)}>{timeSince(d.last_seen)}</td>
+                      <td style={{ padding: '8px 8px', width: 32 }}>
+                        <button
+                          onClick={() => remove(d.mac)}
+                          title="Remove from history"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1e2530', padding: 2, display: 'flex', alignItems: 'center' }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                          onMouseLeave={e => e.currentTarget.style.color = '#1e2530'}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </td>
+                    </tr>,
+
+                    isExpanded && hasPortData && (
+                      <PortsExpanded key={`${d.mac}-ports`} device={d} colSpan={COL_COUNT} />
+                    ),
+                  ]
+                })}
               </tbody>
             </table>
           </div>

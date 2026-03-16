@@ -617,6 +617,23 @@ async def download_artifact(
 
 # Tasks (global list)
 
+@router.get("/tasks/{task_id}")
+async def get_task(
+    task_id: str,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch a single task by ID (for polling)."""
+    task = (await db.execute(
+        select(Task).where(
+            and_(Task.id == task_id, Task.msp_id == operator.msp_id)
+        )
+    )).scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return _task_dict(task)
+
+
 @router.get("/tasks")
 async def list_all_tasks(
     device_id: Optional[str] = None,
@@ -800,12 +817,40 @@ async def delete_discovered_device(
     return {"ok": True}
 
 
+class UpdatePortsRequest(BaseModel):
+    open_ports: list[int]
+
+
+@router.patch("/network/discovered-devices/{mac}/ports")
+async def update_device_ports(
+    mac: str,
+    body: UpdatePortsRequest,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Store open ports discovered by a port scan on a discovered device."""
+    mac = mac.lower().strip()
+    device = (await db.execute(
+        select(DiscoveredDevice).where(
+            and_(DiscoveredDevice.msp_id == operator.msp_id,
+                 DiscoveredDevice.mac == mac)
+        )
+    )).scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    device.open_ports = sorted(body.open_ports)
+    device.ports_scanned_at = datetime.now(timezone.utc)
+    await db.commit()
+    return _discovered_device_dict(device)
+
+
 def _discovered_device_dict(d: DiscoveredDevice) -> dict:
     return {
         "id": d.id, "mac": d.mac, "ip": d.ip, "vendor": d.vendor,
         "hostname": d.hostname, "label": d.label, "known": d.known,
         "source_device_id": d.source_device_id,
         "first_seen": d.first_seen, "last_seen": d.last_seen,
+        "open_ports": d.open_ports, "ports_scanned_at": d.ports_scanned_at,
     }
 
 

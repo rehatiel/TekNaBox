@@ -276,6 +276,9 @@ class DiscoveredDevice(Base):
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
+    open_ports: Mapped[Optional[list]] = mapped_column(JSONB)          # [22, 80, 443, ...]
+    ports_scanned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
     __table_args__ = (
         UniqueConstraint("msp_id", "mac", name="uq_discovered_device_msp_mac"),
         Index("ix_discovered_device_msp", "msp_id"),
