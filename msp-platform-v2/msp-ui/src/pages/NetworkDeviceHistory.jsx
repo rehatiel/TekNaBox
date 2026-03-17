@@ -296,31 +296,47 @@ export default function NetworkDeviceHistoryPage() {
         payload: { target: device.ip, ports: portRange, timeout: 1, concurrency: 100 },
       })
       setScanning(prev => ({ ...prev, [device.mac]: task.task_id }))
-      scheduleTaskPoll(device.mac, task.task_id)
+      scheduleTaskPoll(device.mac, task.task_id, device.ip, portRange)
     } catch (e) {
       setError(`Failed to start scan: ${e.message}`)
     }
   }
 
-  const scheduleTaskPoll = (mac, taskId) => {
-    pollTimers.current[mac] = setTimeout(() => pollTask(mac, taskId), 2000)
+  const scheduleTaskPoll = (mac, taskId, ip, portRange) => {
+    pollTimers.current[mac] = setTimeout(() => pollTask(mac, taskId, ip, portRange), 2000)
   }
 
-  const pollTask = async (mac, taskId) => {
+  const pollTask = async (mac, taskId, ip, portRange) => {
     try {
       const task = await api.getTask(taskId)
       if (task.status === 'completed') {
         const ports = task.result?.open_ports ?? []
         const updated = await api.updateDevicePorts(mac, ports)
+        await api.saveScanRecord(mac, {
+          scan_type: 'port_scan',
+          target_ip: ip,
+          port_range: portRange,
+          task_id: taskId,
+          status: 'completed',
+          result: task.result,
+        })
         setDevices(prev => prev.map(d => d.mac === mac ? updated : d))
         setScanning(prev => { const n = { ...prev }; delete n[mac]; return n })
         setExpanded(mac)  // auto-expand to show results
       } else if (task.status === 'failed') {
+        await api.saveScanRecord(mac, {
+          scan_type: 'port_scan',
+          target_ip: ip,
+          port_range: portRange,
+          task_id: taskId,
+          status: 'failed',
+          error: task.error || 'Scan failed',
+        })
         setError(`Port scan failed: ${task.error || 'unknown error'}`)
         setScanning(prev => { const n = { ...prev }; delete n[mac]; return n })
       } else {
         // Still running — poll again
-        scheduleTaskPoll(mac, taskId)
+        scheduleTaskPoll(mac, taskId, ip, portRange)
       }
     } catch (e) {
       setScanning(prev => { const n = { ...prev }; delete n[mac]; return n })

@@ -14,7 +14,7 @@
 
 - [x] **Hide background ARP scans in Reports** — Background monitoring scans now include `_auto: true` in the task payload. Reports page has a "Hide background scans" checkbox (on by default) that filters out those tasks. ✓ Done
 
-- [ ] **Network monitoring: persistent background service** — Convert network monitoring into a start/stop service that continues running in the background even after navigating away from the page.
+- [x] **Network monitoring: persistent background service** — `_svc` lives at module scope (not component state), so the scan loop keeps running after navigating away from the NetworkDiscovery page. State is also persisted to localStorage and auto-resumed on page refresh. ✓ Done
 
 - [ ] **Network monitoring: interactive diagram** — Make the network diagram interactive: support zoom, pan/enlarge, and clicking on individual devices for detail.
 
@@ -56,7 +56,7 @@
 
 ## Reporting & Export
 
-- [ ] **Dedicated result renderers for remaining 20 task types** — Reports page currently covers only 9 of 29 task types. Add dedicated renderers for: `run_ssl_check`, `run_dns_health`, `run_vuln_scan`, `run_security_audit`, `run_default_creds`, `run_cleartext_services`, `run_smb_enum`, `run_email_breach`, `run_banner_grab`, `run_packet_capture`, `run_iperf`, `run_snmp_query`, `run_dns_lookup`, `run_traceroute`, `run_mtr`, `run_wol`, `run_http_monitor`, `run_wireless_survey`, `run_ad_discover`, `run_vlan_hop`.
+- [x] **Dedicated result renderers for all task types** — Reports page now covers 28 of 29 task types (all except `run_ad_recon` which is disabled in the UI). ✓ Done
 
 - [ ] **PDF report generation** — On-demand or scheduled PDF reports per customer, with MSP branding. Include executive summary, finding list, uptime stats, and device inventory.
 
@@ -74,7 +74,7 @@
 
 ## Device Management
 
-- [ ] **One-liner agent install** — Under "Add Device", provide a single command the user can copy and run on the target machine. The command should: download all required agent files, then install and enroll the agent automatically using the enrollment code (no manual script download required). Auto-detect OS (Raspberry Pi / Ubuntu / Debian) and validate Python 3.10+ and required system packages.
+- [x] **One-liner agent install** — `curl -fsSL https://yourserver.com/v1/agent/bootstrap | sudo bash -s -- --secret <SECRET>`. The bootstrap endpoint generates a shell script with the server URL baked in; the package endpoint streams the agent source as a tar.gz. Agent dir mounted read-only into the API container via docker-compose. ✓ Done
 
 - [ ] **Last sysinfo summary on device card** — Show the most recent CPU temp, disk usage, and memory inline on the device list and device detail page without requiring a new task run.
 

@@ -27,6 +27,11 @@ function SevBadge({ sev }) {
 
 function ScanModal({ devices, onClose, onStarted }) {
   const activeDevices = devices.filter(d => d.status === "active");
+  const customers = [...new Map(
+    activeDevices.filter(d => d.customer_id).map(d => [d.customer_id, d.customer_name || d.customer_id])
+  ).entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  const [modalCustomer, setModalCustomer] = useState("");
+  const scopedDevices = modalCustomer ? activeDevices.filter(d => d.customer_id === modalCustomer) : activeDevices;
   const [form, setForm] = useState({
     device_id:  activeDevices[0]?.id || devices[0]?.id || "",
     scan_type:  "audit",
@@ -70,9 +75,17 @@ function ScanModal({ devices, onClose, onStarted }) {
         <div className="space-y-4">
           <div>
             <label className="block text-xs text-gray-400 mb-1">Device</label>
+            {customers.length > 1 && (
+              <select className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm mb-2"
+                value={modalCustomer} onChange={e => { setModalCustomer(e.target.value); setForm(f => ({ ...f, device_id: "" })); }}>
+                <option value="">All customers</option>
+                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )}
             <select className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
               value={form.device_id} onChange={e => setForm(f => ({ ...f, device_id: e.target.value }))}>
-              {devices.map(d => <option key={d.id} value={d.id}>{d.name} {d.status !== "active" ? "(offline)" : ""}</option>)}
+              <option value="">— select device —</option>
+              {scopedDevices.map(d => <option key={d.id} value={d.id}>{d.name} {d.status !== "active" ? "(offline)" : ""}</option>)}
             </select>
             {isOffline && (
               <div className="mt-1.5 text-amber-400 text-xs bg-amber-900/20 border border-amber-800 rounded p-2">
@@ -280,10 +293,11 @@ export default function Findings() {
   const [activeTask, setActiveTask] = useState(null);  // polling task_id
 
   // Filters
-  const [filterSev,  setFilterSev]  = useState("all");
-  const [filterType, setFilterType] = useState("all");
-  const [filterAck,  setFilterAck]  = useState("open");
-  const [filterDev,  setFilterDev]  = useState("all");
+  const [filterSev,      setFilterSev]      = useState("all");
+  const [filterType,     setFilterType]     = useState("all");
+  const [filterAck,      setFilterAck]      = useState("open");
+  const [filterDev,      setFilterDev]      = useState("all");
+  const [filterCustomer, setFilterCustomer] = useState("all");
 
   const load = useCallback(async () => {
     try {
@@ -323,13 +337,21 @@ export default function Findings() {
     return () => clearInterval(interval);
   }, [activeTask, load]);
 
+  // Derive unique customers from loaded devices
+  const customers = [...new Map(
+    devices.filter(d => d.customer_id).map(d => [d.customer_id, d.customer_name || d.customer_id])
+  ).entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+
+  const deviceCustomerMap = Object.fromEntries(devices.map(d => [d.id, d.customer_id]));
+
   // Filtered findings
   const filtered = findings.filter(f => {
-    if (filterSev  !== "all"  && f.severity  !== filterSev)  return false;
-    if (filterType !== "all"  && f.scan_type !== filterType) return false;
-    if (filterDev  !== "all"  && f.device_id !== filterDev)  return false;
-    if (filterAck  === "open" && f.acknowledged)             return false;
-    if (filterAck  === "acked" && !f.acknowledged)           return false;
+    if (filterSev      !== "all"  && f.severity  !== filterSev)  return false;
+    if (filterType     !== "all"  && f.scan_type !== filterType) return false;
+    if (filterDev      !== "all"  && f.device_id !== filterDev)  return false;
+    if (filterCustomer !== "all"  && deviceCustomerMap[f.device_id] !== filterCustomer) return false;
+    if (filterAck  === "open"  && f.acknowledged)  return false;
+    if (filterAck  === "acked" && !f.acknowledged) return false;
     return true;
   });
 
@@ -391,13 +413,22 @@ export default function Findings() {
           <option value="vuln_scan">Vuln scan</option>
           <option value="security_audit">Security audit</option>
         </select>
+        {customers.length > 1 && (
+          <select className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-white text-sm"
+            value={filterCustomer} onChange={e => { setFilterCustomer(e.target.value); setFilterDev("all"); }}>
+            <option value="all">All customers</option>
+            {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
         <select className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-white text-sm"
           value={filterDev} onChange={e => setFilterDev(e.target.value)}>
           <option value="all">All devices</option>
-          {devices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          {devices
+            .filter(d => filterCustomer === "all" || d.customer_id === filterCustomer)
+            .map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
-        {(filterSev !== "all" || filterType !== "all" || filterDev !== "all" || filterAck !== "open") && (
-          <button onClick={() => { setFilterSev("all"); setFilterType("all"); setFilterDev("all"); setFilterAck("open"); }}
+        {(filterSev !== "all" || filterType !== "all" || filterDev !== "all" || filterAck !== "open" || filterCustomer !== "all") && (
+          <button onClick={() => { setFilterSev("all"); setFilterType("all"); setFilterDev("all"); setFilterAck("open"); setFilterCustomer("all"); }}
             className="text-xs text-gray-500 hover:text-white transition-colors">
             Clear filters
           </button>

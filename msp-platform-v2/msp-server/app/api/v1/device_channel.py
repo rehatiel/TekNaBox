@@ -242,6 +242,22 @@ async def _handle_task_result(db: AsyncSession, device_id: str, msg: dict) -> No
     task.error = msg.get("error")
     task.completed_at = datetime.now(timezone.utc)
 
+    # Cache sysinfo vitals on the device row
+    if success and task.task_type == "get_sysinfo" and task.result:
+        r = task.result
+        mem  = r.get("memory") or {}
+        disk = r.get("disk") or {}
+        await db.execute(
+            sql_update(Device)
+            .where(Device.id == device_id)
+            .values(
+                last_cpu_temp_c=r.get("cpu_temp_c"),
+                last_mem_pct=mem.get("percent") if isinstance(mem, dict) else None,
+                last_disk_pct=disk.get("percent") if isinstance(disk, dict) else None,
+                last_sysinfo_at=datetime.now(timezone.utc),
+            )
+        )
+
     # Fetch device once for any post-processing
     device_obj = None
     if success and task.result and task.task_type in ("run_ad_recon", "run_vuln_scan", "run_security_audit"):

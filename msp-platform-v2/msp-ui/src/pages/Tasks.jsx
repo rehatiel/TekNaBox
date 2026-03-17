@@ -35,6 +35,14 @@ export default function TasksPage() {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterType, setFilterType] = useState('')
   const [filterDevice, setFilterDevice] = useState('')
+  const [filterCustomer, setFilterCustomer] = useState('')
+
+  // Sort
+  const [sort, setSort] = useState({ key: 'queued', dir: 'desc' })
+  const toggleSort = key => setSort(prev => ({
+    key,
+    dir: prev.key === key && prev.dir === 'asc' ? 'desc' : 'asc',
+  }))
 
   // Fetch task types from server on mount
   useEffect(() => {
@@ -67,8 +75,32 @@ export default function TasksPage() {
   useEffect(() => { load() }, [load])
 
   const deviceName = id => devices.find(d => d.id === id)?.name || id?.slice(0, 8) + '…'
+  const deviceCustomer = id => devices.find(d => d.id === id)
 
-  const hasFilters = filterStatus || filterType || filterDevice
+  const customers = [...new Map(
+    devices.filter(d => d.customer_id).map(d => [d.customer_id, d.customer_name || d.customer_id])
+  ).entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+
+  const hasFilters = filterStatus || filterType || filterDevice || filterCustomer
+
+  // Client-side customer filter + sort
+  const visibleTasks = [...tasks]
+    .filter(t => !filterCustomer || deviceCustomer(t.device_id)?.customer_id === filterCustomer)
+    .sort((a, b) => {
+      const dir = sort.dir === 'asc' ? 1 : -1
+      switch (sort.key) {
+        case 'device':   return dir * (deviceName(a.device_id) || '').localeCompare(deviceName(b.device_id) || '')
+        case 'type':     return dir * (a.task_type || '').localeCompare(b.task_type || '')
+        case 'status':   return dir * (a.status || '').localeCompare(b.status || '')
+        case 'customer': return dir * ((deviceCustomer(a.device_id)?.customer_name || '')).localeCompare(deviceCustomer(b.device_id)?.customer_name || '')
+        case 'queued': {
+          const ta = a.queued_at ? new Date(a.queued_at).getTime() : 0
+          const tb = b.queued_at ? new Date(b.queued_at).getTime() : 0
+          return dir * (ta - tb)
+        }
+        default: return 0
+      }
+    })
 
   // Stats
   const counts = tasks.reduce((acc, t) => {
@@ -80,7 +112,7 @@ export default function TasksPage() {
     <div className="animate-fade-in">
       <PageHeader
         title="Tasks"
-        subtitle={`${tasks.length} task${tasks.length !== 1 ? 's' : ''}${hasFilters ? ' (filtered)' : ''}`}
+        subtitle={`${visibleTasks.length} of ${tasks.length} task${tasks.length !== 1 ? 's' : ''}`}
         actions={
           <button onClick={load} className="btn-ghost flex items-center gap-1.5">
             <RefreshCw className="w-3.5 h-3.5" /> Refresh
@@ -142,9 +174,22 @@ export default function TasksPage() {
           ))}
         </select>
 
+        {customers.length > 1 && (
+          <select
+            className="input py-1 text-xs w-44"
+            value={filterCustomer}
+            onChange={e => setFilterCustomer(e.target.value)}
+          >
+            <option value="">All customers</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        )}
+
         {hasFilters && (
           <button
-            onClick={() => { setFilterStatus(''); setFilterType(''); setFilterDevice('') }}
+            onClick={() => { setFilterStatus(''); setFilterType(''); setFilterDevice(''); setFilterCustomer('') }}
             className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
           >
             <X className="w-3 h-3" /> Clear
@@ -156,18 +201,32 @@ export default function TasksPage() {
       <div className="card">
         {loading ? (
           <div className="h-48 flex items-center justify-center"><Spinner /></div>
-        ) : tasks.length === 0 ? (
+        ) : visibleTasks.length === 0 ? (
           <Empty
             icon={CheckSquare}
             title="No tasks found"
             description={hasFilters ? 'Try adjusting your filters' : 'Issue tasks from the Devices page'}
           />
         ) : (
-          <Table headers={['Device', 'Task Type', 'Status', 'Queued', 'Duration', '']}>
-            {tasks.map(t => {
+          <Table
+            headers={[
+              { label: 'Device',   key: 'device' },
+              { label: 'Customer', key: 'customer' },
+              { label: 'Task Type', key: 'type' },
+              { label: 'Status',   key: 'status' },
+              { label: 'Queued',   key: 'queued' },
+              'Duration',
+              '',
+            ]}
+            sortKey={sort.key}
+            sortDir={sort.dir}
+            onSort={toggleSort}
+          >
+            {visibleTasks.map(t => {
               const duration = t.completed_at && t.queued_at
                 ? `${((new Date(t.completed_at) - new Date(t.queued_at)) / 1000).toFixed(1)}s`
                 : t.status === 'running' || t.status === 'dispatched' ? 'running…' : '—'
+              const cust = deviceCustomer(t.device_id)
 
               return (
                 <TR key={t.id}>
@@ -178,6 +237,9 @@ export default function TasksPage() {
                     >
                       {deviceName(t.device_id)}
                     </Link>
+                  </TD>
+                  <TD>
+                    <span className="text-xs text-slate-500">{cust?.customer_name || '—'}</span>
                   </TD>
                   <TD>
                     <span className="text-xs font-mono text-slate-300">{t.task_type}</span>

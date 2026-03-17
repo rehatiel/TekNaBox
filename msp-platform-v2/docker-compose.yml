@@ -50,6 +50,7 @@ services:
       BOOTSTRAP_PASSWORD: ${BOOTSTRAP_PASSWORD:-}
     volumes:
       - artifacts:/artifacts
+      - ../msp-agent-v2:/agent-bundle:ro   # served by /v1/agent/package for one-liner install
     networks:
       - internal
     ports:

@@ -389,9 +389,10 @@ function RawResult({ result }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SecurityHubPage() {
-  const [devices, setDevices]     = useState([])
-  const [deviceId, setDeviceId]   = useState('')
-  const [loading, setLoading]     = useState(true)
+  const [devices,         setDevices]         = useState([])
+  const [deviceId,        setDeviceId]        = useState('')
+  const [filterCustomer,  setFilterCustomer]  = useState('')
+  const [loading,         setLoading]         = useState(true)
 
   useEffect(() => {
     api.getDevices({ status: 'active' })
@@ -399,6 +400,12 @@ export default function SecurityHubPage() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  const customers = [...new Map(
+    devices.filter(d => d.customer_id).map(d => [d.customer_id, d.customer_name || d.customer_id])
+  ).entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+
+  const scopedDevices = filterCustomer ? devices.filter(d => d.customer_id === filterCustomer) : devices
 
   const device = devices.find(d => d.id === deviceId)
 
@@ -424,10 +431,24 @@ export default function SecurityHubPage() {
       {/* Device selector */}
       <div style={{
         background: '#0d1117', border: '1px solid #1e2530', borderRadius: 10,
-        padding: '14px 18px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 14,
+        padding: '14px 18px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
       }}>
         <Server size={16} color="#06b6d4" />
         <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500, whiteSpace: 'nowrap' }}>Run from agent:</span>
+        {customers.length > 1 && (
+          <select
+            value={filterCustomer}
+            onChange={e => { setFilterCustomer(e.target.value); setDeviceId('') }}
+            style={{
+              background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
+              color: filterCustomer ? '#e5e7eb' : '#4b5563', padding: '7px 10px', fontSize: 13,
+              fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer', minWidth: 160,
+            }}
+          >
+            <option value="">All customers</option>
+            {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
         <select
           value={deviceId}
           onChange={e => setDeviceId(e.target.value)}
@@ -438,7 +459,7 @@ export default function SecurityHubPage() {
           }}
         >
           <option value="">— select active device —</option>
-          {devices.map(d => (
+          {scopedDevices.map(d => (
             <option key={d.id} value={d.id}>{d.name} ({d.last_ip || 'no IP'})</option>
           ))}
         </select>

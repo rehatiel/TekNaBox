@@ -178,6 +178,12 @@ class Device(Base):
     current_version: Mapped[Optional[str]] = mapped_column(String(64))
     reported_arch: Mapped[Optional[str]] = mapped_column(String(32))
 
+    # Cached sysinfo vitals (updated whenever get_sysinfo completes)
+    last_cpu_temp_c: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    last_mem_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    last_disk_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    last_sysinfo_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

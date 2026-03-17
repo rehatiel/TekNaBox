@@ -40,14 +40,58 @@ const TASK_TYPES = [
   { value: 'run_ad_recon',        label: 'AD Recon',          defaultPayload: { domain: '', dc_ip: '', username: '', password: '' } },
 ]
 
+// ── Health mini-badge ─────────────────────────────────────────────────────────
+
+function healthColor(pct, warnAt = 70, critAt = 90) {
+  if (pct == null) return '#374151'
+  if (pct >= critAt) return '#ef4444'
+  if (pct >= warnAt) return '#f59e0b'
+  return '#22c55e'
+}
+
+function HealthCell({ device }) {
+  if (device.last_sysinfo_at == null) return <span className="text-xs font-mono text-slate-700">—</span>
+  const { last_cpu_temp_c: temp, last_mem_pct: mem, last_disk_pct: disk } = device
+  return (
+    <span className="flex items-center gap-2 font-mono text-xs">
+      {temp != null && (
+        <span style={{ color: healthColor(temp, 65, 80) }} title="CPU temp">
+          {temp.toFixed(0)}°C
+        </span>
+      )}
+      {mem != null && (
+        <span style={{ color: healthColor(mem) }} title="RAM usage">
+          RAM {mem.toFixed(0)}%
+        </span>
+      )}
+      {disk != null && (
+        <span style={{ color: healthColor(disk, 75, 90) }} title="Disk usage">
+          Disk {disk.toFixed(0)}%
+        </span>
+      )}
+    </span>
+  )
+}
+
 export default function Devices() {
   const [devices, setDevices] = useState([])
   const [sites, setSites] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
-  const [showTask, setShowTask] = useState(null)   // device
-  const [showResult, setShowResult] = useState(null) // task result
+  const [showTask, setShowTask] = useState(null)
+  const [showResult, setShowResult] = useState(null)
   const [error, setError] = useState('')
+
+  // Filters
+  const [filterCustomer, setFilterCustomer] = useState('')
+  const [filterSite, setFilterSite] = useState('')
+
+  // Sort
+  const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
+  const toggleSort = key => setSort(prev => ({
+    key,
+    dir: prev.key === key && prev.dir === 'asc' ? 'desc' : 'asc',
+  }))
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -61,11 +105,42 @@ export default function Devices() {
 
   const siteName = id => sites.find(s => s.id === id)?.name || id?.slice(0, 8)
 
+  // Derive unique customers from loaded devices
+  const customers = [...new Map(
+    devices.filter(d => d.customer_id).map(d => [d.customer_id, d.customer_name || d.customer_id])
+  ).entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+
+  // Filter + sort
+  const visible = [...devices]
+    .filter(d => !filterCustomer || d.customer_id === filterCustomer)
+    .filter(d => !filterSite     || d.site_id     === filterSite)
+    .sort((a, b) => {
+      const dir = sort.dir === 'asc' ? 1 : -1
+      switch (sort.key) {
+        case 'name':      return dir * (a.name || '').localeCompare(b.name || '')
+        case 'status':    return dir * (a.status || '').localeCompare(b.status || '')
+        case 'customer':  return dir * (a.customer_name || '').localeCompare(b.customer_name || '')
+        case 'site':      return dir * (siteName(a.site_id) || '').localeCompare(siteName(b.site_id) || '')
+        case 'version':   return dir * (a.current_version || '').localeCompare(b.current_version || '')
+        case 'last_seen': {
+          const ta = a.last_seen_at ? new Date(a.last_seen_at).getTime() : 0
+          const tb = b.last_seen_at ? new Date(b.last_seen_at).getTime() : 0
+          return dir * (ta - tb)
+        }
+        default: return 0
+      }
+    })
+
+  // Site filter options scoped to selected customer
+  const siteOptions = sites.filter(s =>
+    !filterCustomer || devices.some(d => d.customer_id === filterCustomer && d.site_id === s.id)
+  )
+
   return (
     <div className="animate-fade-in">
       <PageHeader
         title="Devices"
-        subtitle={`${devices.length} device${devices.length !== 1 ? 's' : ''} registered`}
+        subtitle={`${visible.length} of ${devices.length} device${devices.length !== 1 ? 's' : ''}`}
         actions={
           <>
             <button onClick={load} className="btn-ghost flex items-center gap-1.5">
@@ -80,6 +155,40 @@ export default function Devices() {
 
       {error && <Alert type="error" message={error} onClose={() => setError('')} className="mb-4" />}
 
+      {/* Customer / site filter bar */}
+      {(customers.length > 1 || sites.length > 1) && (
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          {customers.length > 1 && (
+            <select
+              value={filterCustomer}
+              onChange={e => { setFilterCustomer(e.target.value); setFilterSite('') }}
+              className="input text-xs py-1.5 w-48"
+            >
+              <option value="">All customers</option>
+              {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+          {siteOptions.length > 1 && (
+            <select
+              value={filterSite}
+              onChange={e => setFilterSite(e.target.value)}
+              className="input text-xs py-1.5 w-44"
+            >
+              <option value="">All sites</option>
+              {siteOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          )}
+          {(filterCustomer || filterSite) && (
+            <button
+              onClick={() => { setFilterCustomer(''); setFilterSite('') }}
+              className="btn-ghost text-xs py-1.5"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="card">
         {loading ? (
           <div className="flex items-center justify-center h-40"><Spinner /></div>
@@ -89,8 +198,22 @@ export default function Devices() {
             action={<button onClick={() => setShowCreate(true)} className="btn-primary">New Device</button>}
           />
         ) : (
-          <Table headers={['Name', 'Status', 'Site', 'Version', 'Last Seen', '']}>
-            {devices.map(d => (
+          <Table
+            headers={[
+              { label: 'Name',      key: 'name' },
+              { label: 'Status',    key: 'status' },
+              { label: 'Customer',  key: 'customer' },
+              { label: 'Site',      key: 'site' },
+              { label: 'Health',    key: null },
+              { label: 'Version',   key: 'version' },
+              { label: 'Last Seen', key: 'last_seen' },
+              '',
+            ]}
+            sortKey={sort.key}
+            sortDir={sort.dir}
+            onSort={toggleSort}
+          >
+            {visible.map(d => (
               <TR key={d.id}>
                 <TD>
                   <Link to={`/devices/${d.id}`} className="flex items-center gap-2 hover:text-cyan-DEFAULT transition-colors">
@@ -99,7 +222,9 @@ export default function Devices() {
                   </Link>
                 </TD>
                 <TD><StatusBadge status={d.status} /></TD>
+                <TD><span className="text-xs text-slate-500">{d.customer_name || '—'}</span></TD>
                 <TD><span className="text-xs text-slate-500">{siteName(d.site_id)}</span></TD>
+                <TD><HealthCell device={d} /></TD>
                 <TD><span className="tag bg-bg-elevated border-bg-border text-slate-500">{d.current_version || '—'}</span></TD>
                 <TD>
                   <span className="text-xs font-mono text-slate-600">
@@ -283,6 +408,9 @@ function IssueTaskModal({ device, onClose, onIssued }) {
 
 function ResultModal({ result, onClose }) {
   if (result.type === 'enrollment') {
+    const wsBase   = import.meta.env.VITE_WS_BASE || ''
+    const apiBase  = import.meta.env.VITE_API_BASE ||
+      wsBase.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://')
     return (
       <Modal title="Device Created" onClose={onClose}>
         <Alert type="success" message={`Device "${result.name}" created successfully.`} />
@@ -290,9 +418,9 @@ function ResultModal({ result, onClose }) {
           <label className="label">Enrollment Secret — shown once, copy now</label>
           <CodeBlock>{result.secret}</CodeBlock>
           <p className="text-xs text-slate-600 mt-2">
-            Run on the Pi:
+            Run this on the target machine — downloads and installs everything automatically:
           </p>
-          <CodeBlock>{`sudo bash install.sh --server ${import.meta.env.VITE_API_BASE || import.meta.env.VITE_WS_BASE} --secret ${result.secret}`}</CodeBlock>
+          <CodeBlock>{`curl -fsSL ${apiBase}/v1/agent/bootstrap | sudo bash -s -- --secret ${result.secret}`}</CodeBlock>
         </div>
         <button onClick={onClose} className="btn-primary w-full mt-4">Done</button>
       </Modal>

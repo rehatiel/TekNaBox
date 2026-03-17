@@ -128,17 +128,37 @@ export function CodeBlock({ children, content }) {
 }
 
 // ── Table ─────────────────────────────────────────────────────────────────────
-export function Table({ headers, children, empty }) {
+// headers: array of strings OR { label, key } objects.
+// Pass sortKey, sortDir, onSort to enable clickable column sorting.
+export function Table({ headers, children, empty, sortKey, sortDir, onSort }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-bg-border">
-            {headers.map(h => (
-              <th key={h} className="text-left py-2 px-3 text-xs font-display font-500 text-slate-500 uppercase tracking-widest">
-                {h}
-              </th>
-            ))}
+            {headers.map(h => {
+              const label    = typeof h === 'string' ? h : h.label
+              const key      = typeof h === 'string' ? null : h.key
+              const active   = key && sortKey === key
+              const sortable = key && onSort
+              return (
+                <th
+                  key={label || '_action'}
+                  onClick={sortable ? () => onSort(key) : undefined}
+                  className={[
+                    'text-left py-2 px-3 text-xs font-display font-500 uppercase tracking-widest',
+                    active ? 'text-cyan-DEFAULT' : 'text-slate-500',
+                    sortable ? 'cursor-pointer select-none hover:text-slate-300' : '',
+                  ].join(' ')}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {label}
+                    {active && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                    {!active && sortable && <span className="opacity-20">↕</span>}
+                  </span>
+                </th>
+              )
+            })}
           </tr>
         </thead>
         <tbody>{children}</tbody>

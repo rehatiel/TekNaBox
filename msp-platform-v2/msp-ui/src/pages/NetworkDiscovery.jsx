@@ -480,6 +480,7 @@ export default function NetworkDiscoveryPage() {
 
   // Local UI state (not persisted across navigation)
   const [agents,         setAgents]         = useState([])
+  const [filterCustomer, setFilterCustomer] = useState('')
   const [selectedAgent,  setSelectedAgent]  = useState(_svc.agentId || '')
   const [iface,          setIface]          = useState(_svc.iface || 'eth0')
   const [scanInterval,   setScanInterval]   = useState(_svc.interval || 60)
@@ -498,6 +499,12 @@ export default function NetworkDiscoveryPage() {
       })
       .catch(() => {})
   }, [])
+
+  const customers = [...new Map(
+    agents.filter(d => d.customer_id).map(d => [d.customer_id, d.customer_name || d.customer_id])
+  ).entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+
+  const scopedAgents = filterCustomer ? agents.filter(d => d.customer_id === filterCustomer) : agents
 
   // Fetch interface list from sysinfo when agent changes
   useEffect(() => {
@@ -585,6 +592,22 @@ export default function NetworkDiscoveryPage() {
         padding: '14px 18px', marginBottom: 20,
         display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap',
       }}>
+        {/* Customer filter (only shown with multiple customers) */}
+        {customers.length > 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={labelStyle}>Customer</label>
+            <select
+              value={filterCustomer}
+              onChange={e => { setFilterCustomer(e.target.value); setSelectedAgent('') }}
+              disabled={active}
+              style={{ ...selectStyle, minWidth: 160, cursor: active ? 'not-allowed' : 'pointer' }}
+            >
+              <option value="">All customers</option>
+              {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        )}
+
         {/* Agent */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={labelStyle}>Agent</label>
@@ -595,7 +618,7 @@ export default function NetworkDiscoveryPage() {
             style={{ ...selectStyle, minWidth: 200, cursor: active ? 'not-allowed' : 'pointer' }}
           >
             <option value="">— select active device —</option>
-            {agents.map(d => (
+            {scopedAgents.map(d => (
               <option key={d.id} value={d.id}>{d.name} ({d.last_ip || 'no IP'})</option>
             ))}
           </select>
