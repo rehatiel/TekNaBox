@@ -295,8 +295,8 @@ export default function NetworkDeviceHistoryPage() {
         task_type: 'run_port_scan',
         payload: { target: device.ip, ports: portRange, timeout: 1, concurrency: 100 },
       })
-      setScanning(prev => ({ ...prev, [device.mac]: task.id }))
-      scheduleTaskPoll(device.mac, task.id)
+      setScanning(prev => ({ ...prev, [device.mac]: task.task_id }))
+      scheduleTaskPoll(device.mac, task.task_id)
     } catch (e) {
       setError(`Failed to start scan: ${e.message}`)
     }

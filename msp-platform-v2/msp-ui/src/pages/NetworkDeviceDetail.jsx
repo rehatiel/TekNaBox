@@ -549,8 +549,8 @@ export default function NetworkDeviceDetailPage() {
     if (!taskPayload) return
     try {
       const task = await api.issueTask(device.source_device_id, taskPayload)
-      setRunning(prev => ({ ...prev, [scanDef.id]: { taskId: task.id, fields } }))
-      schedulePoll(scanDef, task.id, fields)
+      setRunning(prev => ({ ...prev, [scanDef.id]: { taskId: task.task_id, fields } }))
+      schedulePoll(scanDef, task.task_id, fields)
     } catch (e) {
       setError(`Failed to start ${scanDef.label}: ${e.message}`)
     }
