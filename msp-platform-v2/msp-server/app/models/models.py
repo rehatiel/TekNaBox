@@ -278,10 +278,36 @@ class DiscoveredDevice(Base):
 
     open_ports: Mapped[Optional[list]] = mapped_column(JSONB)          # [22, 80, 443, ...]
     ports_scanned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[Optional[str]] = mapped_column(Text)                  # operator notes
 
     __table_args__ = (
         UniqueConstraint("msp_id", "mac", name="uq_discovered_device_msp_mac"),
         Index("ix_discovered_device_msp", "msp_id"),
+    )
+
+
+class DeviceScanRecord(Base):
+    """Persistent record of every scan run against a discovered device."""
+    __tablename__ = "device_scan_records"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=new_uuid)
+    msp_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("msp_organizations.id"), nullable=False)
+    discovered_device_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("discovered_devices.id"), nullable=False)
+
+    scan_type: Mapped[str] = mapped_column(String(32), nullable=False)  # port_scan, banner_grab, nmap_scan, vuln_scan, ssl_check, smb_enum
+    target_ip: Mapped[Optional[str]] = mapped_column(String(45))
+    port_range: Mapped[Optional[str]] = mapped_column(String(128))      # e.g. "1-1024" for port scans
+    task_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False)) # reference to the dispatching task
+
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="completed")  # completed, failed
+    result: Mapped[Optional[dict]] = mapped_column(JSONB)               # full task result payload
+    error: Mapped[Optional[str]] = mapped_column(Text)
+
+    scanned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    __table_args__ = (
+        Index("ix_device_scan_records_device", "discovered_device_id"),
+        Index("ix_device_scan_records_msp", "msp_id"),
     )
 
 

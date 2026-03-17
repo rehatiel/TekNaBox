@@ -27,7 +27,7 @@ from app.models.models import (
     MSPOrganization, CustomerOrganization, Site, Device, DeviceStatus,
     DeviceRole, Task, TaskStatus, Operator, OperatorRole,
     ClientRelease, UpdatePolicy, DeviceUpdateJob, UpdateStatus, AuditAction,
-    DiscoveredDevice,
+    DiscoveredDevice, DeviceScanRecord,
 )
 from app.services.audit import write_audit
 
@@ -851,7 +851,131 @@ def _discovered_device_dict(d: DiscoveredDevice) -> dict:
         "source_device_id": d.source_device_id,
         "first_seen": d.first_seen, "last_seen": d.last_seen,
         "open_ports": d.open_ports, "ports_scanned_at": d.ports_scanned_at,
+        "notes": d.notes,
     }
+
+
+def _scan_record_dict(r: DeviceScanRecord) -> dict:
+    return {
+        "id": r.id,
+        "scan_type": r.scan_type,
+        "target_ip": r.target_ip,
+        "port_range": r.port_range,
+        "task_id": r.task_id,
+        "status": r.status,
+        "result": r.result,
+        "error": r.error,
+        "scanned_at": r.scanned_at,
+    }
+
+
+# ── Device detail + scan history endpoints ────────────────────────────────────
+
+@router.get("/network/discovered-devices/{mac}/detail")
+async def get_discovered_device_detail(
+    mac: str,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a single discovered device with its full scan history."""
+    mac = mac.lower().strip()
+    device = (await db.execute(
+        select(DiscoveredDevice).where(
+            and_(DiscoveredDevice.msp_id == operator.msp_id,
+                 DiscoveredDevice.mac == mac)
+        )
+    )).scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    scans = (await db.execute(
+        select(DeviceScanRecord)
+        .where(DeviceScanRecord.discovered_device_id == device.id)
+        .order_by(DeviceScanRecord.scanned_at.desc())
+    )).scalars().all()
+
+    return {
+        **_discovered_device_dict(device),
+        "scans": [_scan_record_dict(r) for r in scans],
+    }
+
+
+class SaveScanRecordRequest(BaseModel):
+    scan_type: str
+    target_ip: Optional[str] = None
+    port_range: Optional[str] = None
+    task_id: Optional[str] = None
+    status: str = "completed"
+    result: Optional[dict] = None
+    error: Optional[str] = None
+
+
+@router.post("/network/discovered-devices/{mac}/scans")
+async def save_scan_record(
+    mac: str,
+    body: SaveScanRecordRequest,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save a completed (or failed) scan result for a discovered device."""
+    mac = mac.lower().strip()
+    device = (await db.execute(
+        select(DiscoveredDevice).where(
+            and_(DiscoveredDevice.msp_id == operator.msp_id,
+                 DiscoveredDevice.mac == mac)
+        )
+    )).scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    record = DeviceScanRecord(
+        msp_id=operator.msp_id,
+        discovered_device_id=device.id,
+        scan_type=body.scan_type,
+        target_ip=body.target_ip or device.ip,
+        port_range=body.port_range,
+        task_id=body.task_id,
+        status=body.status,
+        result=body.result,
+        error=body.error,
+    )
+    db.add(record)
+
+    # For port scans keep the denormalized open_ports field up to date
+    if body.scan_type == "port_scan" and body.status == "completed" and body.result:
+        ports = body.result.get("open_ports", [])
+        device.open_ports = sorted(ports)
+        device.ports_scanned_at = record.scanned_at
+
+    await db.commit()
+    await db.refresh(record)
+    return _scan_record_dict(record)
+
+
+class UpdateNotesRequest(BaseModel):
+    notes: Optional[str] = None
+
+
+@router.patch("/network/discovered-devices/{mac}/notes")
+async def update_device_notes(
+    mac: str,
+    body: UpdateNotesRequest,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save operator notes on a discovered device."""
+    mac = mac.lower().strip()
+    device = (await db.execute(
+        select(DiscoveredDevice).where(
+            and_(DiscoveredDevice.msp_id == operator.msp_id,
+                 DiscoveredDevice.mac == mac)
+        )
+    )).scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    device.notes = body.notes
+    await db.commit()
+    return _discovered_device_dict(device)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

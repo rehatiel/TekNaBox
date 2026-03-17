@@ -144,10 +144,13 @@ export const api = {
 
   // ── Network Device History ────────────────────────────────────────────────
   getDiscoveredDevices:    ()              => get('/v1/network/discovered-devices'),
+  getDiscoveredDevice:     (mac)           => get(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/detail`),
   toggleDeviceKnown:       (mac)           => patch(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/known`, {}),
   setDeviceLabel:          (mac, label)    => patch(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/label`, { label }),
   deleteDiscoveredDevice:  (mac)           => del(`/v1/network/discovered-devices/${encodeURIComponent(mac)}`),
   updateDevicePorts:       (mac, ports)    => patch(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/ports`, { open_ports: ports }),
+  saveScanRecord:          (mac, body)     => post(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/scans`, body),
+  updateDeviceNotes:       (mac, notes)    => patch(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/notes`, { notes }),
 
   // ── Generic helpers ───────────────────────────────────────────────────────
   get:    (path) => get(path),

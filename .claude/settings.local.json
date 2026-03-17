@@ -8,7 +8,10 @@
       "Bash(grep -n \"asyncio.get_event_loop\\(\\)\" /d/Projects/teknabox/msp-agent-v2/tasks/*.py | head -10)",
       "Bash(cd /d/Projects/teknabox/msp-platform-v2/msp-server && grep -h \"@router\" app/api/v1/*.py | sort | uniq | head -50)",
       "Bash(cd D:/Projects/teknabox/msp-platform-v2 && docker compose ps 2>&1)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(cd:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker version:*)"
     ]
   }
 }

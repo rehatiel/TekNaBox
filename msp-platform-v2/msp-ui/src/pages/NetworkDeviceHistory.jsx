@@ -4,10 +4,12 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import {
   History, RefreshCw, CheckCircle, Trash2, X, Pencil, Check,
   Search, Filter, Eye, EyeOff, ScanLine, ChevronDown, ChevronRight,
+  ExternalLink,
 } from 'lucide-react'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -223,6 +225,7 @@ function PortsExpanded({ device, colSpan }) {
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function NetworkDeviceHistoryPage() {
+  const navigate = useNavigate()
   const [devices,      setDevices]      = useState([])
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState('')
@@ -539,16 +542,27 @@ export default function NetworkDeviceHistoryPage() {
 
                       <td style={{ padding: '8px 12px', color: '#374151', whiteSpace: 'nowrap' }} title={fmt(d.first_seen)}>{timeSince(d.first_seen)}</td>
                       <td style={{ padding: '8px 12px', color: '#374151', whiteSpace: 'nowrap' }} title={fmt(d.last_seen)}>{timeSince(d.last_seen)}</td>
-                      <td style={{ padding: '8px 8px', width: 32 }}>
-                        <button
-                          onClick={() => remove(d.mac)}
-                          title="Remove from history"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1e2530', padding: 2, display: 'flex', alignItems: 'center' }}
-                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                          onMouseLeave={e => e.currentTarget.style.color = '#1e2530'}
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                      <td style={{ padding: '8px 8px', width: 64 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <button
+                            onClick={() => navigate(`/network-device/${encodeURIComponent(d.mac)}`)}
+                            title="View device details"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1e3a4a', padding: 2, display: 'flex', alignItems: 'center' }}
+                            onMouseEnter={e => e.currentTarget.style.color = '#06b6d4'}
+                            onMouseLeave={e => e.currentTarget.style.color = '#1e3a4a'}
+                          >
+                            <ExternalLink size={12} />
+                          </button>
+                          <button
+                            onClick={() => remove(d.mac)}
+                            title="Remove from history"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1e2530', padding: 2, display: 'flex', alignItems: 'center' }}
+                            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                            onMouseLeave={e => e.currentTarget.style.color = '#1e2530'}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </td>
                     </tr>,
 
