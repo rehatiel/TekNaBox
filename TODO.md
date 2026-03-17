@@ -16,13 +16,11 @@
 
 - [x] **Network monitoring: persistent background service** — `_svc` lives at module scope (not component state), so the scan loop keeps running after navigating away from the NetworkDiscovery page. State is also persisted to localStorage and auto-resumed on page refresh. ✓ Done
 
-- [ ] **Network monitoring: interactive diagram** — Make the network diagram interactive: support zoom, pan/enlarge, and clicking on individual devices for detail.
+- [x] **Network monitoring: interactive diagram** — Zoom (scroll wheel, buttons), pan (drag), click node for detail panel. ✓ Done
 
-- [ ] **Network scan report** — Generate a report from scan results showing all detected devices and their gathered information. Produce two formats:
-  - Detailed technical report
-  - Executive-level summary
+- [x] **Network scan report** — "Generate Report" button on the Network Map opens a modal with two tabs: Executive Summary (counts, vendor breakdown, recommendations) and Technical Report (full device table sortable by IP). Downloadable as .txt. ✓ Done
 
-- [ ] **VLAN hopping detection** — Add a "VLAN Hopping" item under the Network Tools page that scans for network misconfigurations that could allow VLAN hopping attacks.
+- [x] **VLAN hopping detection** — `run_vlan_hop` task (scapy, double-tag + DTP tests) added to Network Tools page with a result renderer showing per-test vulnerable/not-vulnerable status. ✓ Done
 
 - [ ] **HTTP monitor dedicated page** — The `run_http_monitor` task exists and runs but has no dedicated UI page. Build a page similar to SecurityHub that launches the task, shows results per URL (status code, response time, SSL expiry, content match, redirect chain), and saves history.
 

@@ -9,7 +9,7 @@ import {
   Network, Radar, Cpu, Clock, Layers, Zap,
   Play, ChevronDown, ChevronRight, Loader2,
   CheckCircle, AlertTriangle, Server, Wifi,
-  Monitor, HardDrive, MapPin
+  Monitor, HardDrive, MapPin, ShieldAlert,
 } from 'lucide-react'
 
 // ── Task definitions ──────────────────────────────────────────────────────────
@@ -94,6 +94,23 @@ const NET_TASKS = [
       { key: 'count', label: 'Packets per target', type: 'number', min: 1, max: 10 },
     ],
     renderResult: WolResult,
+  },
+  {
+    id: 'run_vlan_hop',
+    label: 'VLAN Hopping Detection',
+    icon: ShieldAlert,
+    description: 'Tests for VLAN hopping vulnerabilities: double-tagging attack and DTP trunk negotiation',
+    color: '#f97316',
+    defaultPayload: { interface: 'eth0', native_vlan: 1, target_vlans: '', target_ip: '', timeout: 5 },
+    fields: [
+      { key: 'interface',    label: 'Interface',                  type: 'interface', placeholder: 'eth0' },
+      { key: 'native_vlan',  label: 'Native / access VLAN',       type: 'number', min: 1, max: 4094 },
+      { key: 'target_vlans', label: 'Target VLANs',               type: 'text', placeholder: '10  or  10-50  or  10,20,100-110' },
+      { key: 'target_ip',    label: 'Probe IP (optional, for ARP confirmation)', type: 'text', placeholder: '10.0.10.1' },
+      { key: 'timeout',      label: 'Capture timeout per VLAN (seconds)', type: 'number', min: 2, max: 30 },
+    ],
+    renderResult: VlanHopResult,
+    note: 'Requires scapy and root/CAP_NET_RAW on the agent. Run on a managed switch port — unmanaged switches will show no DTP response.',
   },
 ]
 
@@ -244,6 +261,127 @@ function WolResult({ result }) {
   )
 }
 
+function VlanHopResult({ result }) {
+  if (result.error) {
+    return (
+      <div style={{ background: '#1a0a0a', border: '1px solid #7f1d1d', borderRadius: 8, padding: '10px 14px', color: '#ef4444', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}>
+        {result.error}
+      </div>
+    )
+  }
+
+  const overall        = result.vulnerable
+  const findings       = result.findings || []
+  const vlansTestedCount = result.vlans_tested?.length ?? 1
+  const vulnVlans      = result.vulnerable_vlans || []
+
+  // Separate double-tag findings (one per VLAN) from the single DTP finding
+  const doubleTagFindings = findings.filter(f => f.test === 'double_tagging')
+  const dtpFinding        = findings.find(f => f.test === 'dtp_negotiation')
+
+  return (
+    <div>
+      <SummaryRow items={[
+        { label: 'Interface',       value: result.interface },
+        { label: 'Native VLAN',     value: result.native_vlan },
+        { label: 'VLANs tested',    value: vlansTestedCount },
+        { label: 'Vulnerable VLANs', value: vulnVlans.length, color: vulnVlans.length > 0 ? '#ef4444' : '#22c55e' },
+        { label: 'Overall',         value: overall ? 'VULNERABLE' : 'CLEAN', color: overall ? '#ef4444' : '#22c55e' },
+      ]} />
+
+      {/* Double-tag results — compact table when multiple VLANs */}
+      {doubleTagFindings.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+            Double-Tag Attack Results
+          </div>
+          {doubleTagFindings.length === 1 ? (
+            <FindingCard f={doubleTagFindings[0]} />
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
+                <thead>
+                  <tr>
+                    {['Target VLAN', 'Result', 'ARP Replies', 'Notes'].map(c => (
+                      <th key={c} style={{ textAlign: 'left', padding: '6px 10px', color: '#4b5563', borderBottom: '1px solid #1e2530', fontWeight: 600, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em' }}>{c}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {doubleTagFindings.map((f, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #111827', background: f.vulnerable ? '#1a050520' : 'transparent' }}>
+                      <td style={{ padding: '6px 10px', color: '#e5e7eb' }}>{f.target_vlan}</td>
+                      <td style={{ padding: '6px 10px' }}>
+                        {f.error
+                          ? <span style={{ color: '#6b7280' }}>Error</span>
+                          : f.vulnerable
+                            ? <span style={{ color: '#ef4444', fontWeight: 700 }}>VULNERABLE</span>
+                            : <span style={{ color: '#22c55e' }}>Clean</span>
+                        }
+                      </td>
+                      <td style={{ padding: '6px 10px', color: '#9ca3af' }}>{f.replies?.length ?? '—'}</td>
+                      <td style={{ padding: '6px 10px', color: '#4b5563', fontSize: 11 }}>
+                        {f.error || (f.replies?.length > 0 ? f.replies.map(r => r.src_ip).join(', ') : '—')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* DTP result */}
+      {dtpFinding && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+            DTP Trunk Negotiation
+          </div>
+          <FindingCard f={dtpFinding} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FindingCard({ f }) {
+  const vuln        = f.vulnerable
+  const borderColor = f.error ? '#374151' : vuln ? '#ef444460' : '#22c55e40'
+  const bgColor     = f.error ? '#111827' : vuln ? '#1a0505'   : '#051a09'
+  return (
+    <div style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 8, padding: '12px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: f.description ? 6 : 0 }}>
+        {f.error
+          ? <AlertTriangle size={13} color="#6b7280" />
+          : vuln ? <AlertTriangle size={13} color="#ef4444" /> : <CheckCircle size={13} color="#22c55e" />
+        }
+        {!f.error && (
+          <span style={{
+            fontSize: 11, fontWeight: 700,
+            color: vuln ? '#ef4444' : '#22c55e',
+            background: vuln ? '#450a0a' : '#052e16',
+            border: `1px solid ${vuln ? '#7f1d1d' : '#166534'}`,
+            borderRadius: 4, padding: '1px 8px',
+          }}>
+            {vuln ? 'VULNERABLE' : 'NOT VULNERABLE'}
+          </span>
+        )}
+      </div>
+      {f.error
+        ? <div style={{ fontSize: 12, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>{f.error}</div>
+        : <div style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.6 }}>{f.description}</div>
+      }
+      {f.test === 'dtp_negotiation' && f.replies?.length > 0 && (
+        <HostTable columns={['Switch MAC']} rows={f.replies.map(mac => [mac])} />
+      )}
+      {f.test === 'double_tagging' && f.replies?.length > 0 && (
+        <HostTable columns={['Source MAC', 'Source IP']} rows={f.replies.map(r => [r.src_mac, r.src_ip])} />
+      )}
+    </div>
+  )
+}
+
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
 function SummaryRow({ items }) {
@@ -390,7 +528,9 @@ function TaskPanel({ task, deviceId, interfaces }) {
       const { task_id } = await api.issueTask(deviceId, {
         task_type: task.id,
         payload,
-        timeout_seconds: task.id === 'run_lldp_neighbors' ? payload.duration + 20 : 120,
+        timeout_seconds: task.id === 'run_lldp_neighbors' ? payload.duration + 20
+                       : task.id === 'run_vlan_hop' ? (payload.timeout || 5) * 55 + 30
+                       : 120,
       })
       pollRef.current = setInterval(async () => {
         try {
@@ -515,7 +655,7 @@ export default function NetworkToolsPage() {
             </h1>
           </div>
           <p style={{ fontSize: 13, color: '#4b5563', margin: 0 }}>
-            ARP scan, ping sweep, NetBIOS enumeration, LLDP topology, NTP sync, and Wake-on-LAN
+            ARP scan, ping sweep, NetBIOS enumeration, LLDP topology, NTP sync, Wake-on-LAN, and VLAN hopping detection
           </p>
         </div>
       </div>

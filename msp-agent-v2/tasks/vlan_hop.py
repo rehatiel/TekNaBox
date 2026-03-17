@@ -6,17 +6,22 @@ Tests:
   1. Double-tagging: Crafts frames with two 802.1Q headers (outer = native VLAN,
      inner = target VLAN). If the switch strips only the outer tag and forwards,
      the frame reaches the target VLAN. ARP replies from that VLAN confirm transit.
+     Runs once per target VLAN in the range.
   2. DTP negotiation: Sends a DTP "desirable" frame and listens for a response,
-     indicating the switch will negotiate a trunk link.
+     indicating the switch will negotiate a trunk link. Runs once regardless of range.
 
 Requires: scapy (pip3 install scapy) and CAP_NET_RAW / root.
 
 Payload:
-  interface:   network interface (default: eth0)
-  native_vlan: native/access VLAN on this port (default: 1)
-  target_vlan: VLAN ID to attempt to hop to (required)
-  target_ip:   optional IP in target VLAN to ARP-probe (confirms transit)
-  timeout:     seconds to wait for responses (default: 5)
+  interface:    network interface (default: eth0)
+  native_vlan:  native/access VLAN on this port (default: 1)
+  target_vlans: VLAN(s) to attempt to hop to. Accepts:
+                  - single number: 10
+                  - range:         10-50
+                  - list/mixed:    10,20,100-110
+                Maximum 50 VLANs per scan.
+  target_ip:    optional IP to ARP-probe (used for all target VLANs; default: 192.0.2.1)
+  timeout:      seconds to wait per VLAN test (default: 5)
 """
 
 import asyncio
@@ -26,33 +31,68 @@ import re
 logger = logging.getLogger(__name__)
 
 SAFE_IFACE_RE = re.compile(r'^[a-zA-Z0-9.\-_]+$')
+MAX_VLANS = 50
+
+
+def parse_vlan_range(value) -> list[int]:
+    """
+    Parse a VLAN specifier into a sorted list of unique VLAN IDs.
+    Accepts: int, "10", "10-20", "10,20", "10-20,30,40-45"
+    """
+    if isinstance(value, int):
+        return [value]
+
+    vlans = set()
+    for part in str(value).split(','):
+        part = part.strip()
+        if '-' in part:
+            lo, _, hi = part.partition('-')
+            lo, hi = int(lo.strip()), int(hi.strip())
+            if lo > hi:
+                lo, hi = hi, lo
+            vlans.update(range(lo, hi + 1))
+        elif part:
+            vlans.add(int(part))
+
+    return sorted(vlans)
 
 
 async def run(payload: dict) -> dict:
     interface   = payload.get("interface", "eth0")
     native_vlan = int(payload.get("native_vlan", 1))
-    target_vlan = payload.get("target_vlan")
     target_ip   = payload.get("target_ip", "")
     timeout     = float(payload.get("timeout", 5))
 
-    if target_vlan is None:
-        raise ValueError("target_vlan is required")
-    target_vlan = int(target_vlan)
+    # Accept both legacy target_vlan (single int) and new target_vlans (range string)
+    raw = payload.get("target_vlans") or payload.get("target_vlan")
+    if raw is None:
+        raise ValueError("target_vlans is required (e.g. '10', '10-50', '10,20,100-110')")
+
+    try:
+        target_vlans = parse_vlan_range(raw)
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid target_vlans value: {e}")
 
     if not SAFE_IFACE_RE.match(interface):
         raise ValueError(f"Invalid interface: {interface!r}")
-    if not (1 <= native_vlan <= 4094) or not (1 <= target_vlan <= 4094):
-        raise ValueError("VLAN IDs must be between 1 and 4094")
-    if native_vlan == target_vlan:
-        raise ValueError("native_vlan and target_vlan must differ")
+    if not (1 <= native_vlan <= 4094):
+        raise ValueError("native_vlan must be between 1 and 4094")
+    for v in target_vlans:
+        if not (1 <= v <= 4094):
+            raise ValueError(f"VLAN ID {v} out of range (1–4094)")
+    target_vlans = [v for v in target_vlans if v != native_vlan]
+    if not target_vlans:
+        raise ValueError("No valid target VLANs after excluding native_vlan")
+    if len(target_vlans) > MAX_VLANS:
+        raise ValueError(f"Too many VLANs ({len(target_vlans)}); maximum is {MAX_VLANS} per scan")
 
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
-        None, _run_tests, interface, native_vlan, target_vlan, target_ip, timeout,
+        None, _run_tests, interface, native_vlan, target_vlans, target_ip, timeout,
     )
 
 
-def _run_tests(interface, native_vlan, target_vlan, target_ip, timeout) -> dict:
+def _run_tests(interface, native_vlan, target_vlans, target_ip, timeout) -> dict:
     try:
         from scapy.all import Ether, Dot1Q, ARP, LLC, SNAP, sendp, sniff, conf, get_if_hwaddr
     except ImportError:
@@ -65,17 +105,29 @@ def _run_tests(interface, native_vlan, target_vlan, target_ip, timeout) -> dict:
     except Exception as e:
         return {"error": f"Cannot read MAC for {interface}: {e}"}
 
-    findings = []
-    findings.append(_test_double_tag(interface, local_mac, native_vlan, target_vlan,
-                                     target_ip or "192.0.2.1", timeout))
-    findings.append(_test_dtp(interface, local_mac, timeout))
+    probe_ip = target_ip or "192.0.2.1"
+
+    # Double-tag test for each target VLAN
+    double_tag_findings = [
+        _test_double_tag(interface, local_mac, native_vlan, vlan, probe_ip, timeout)
+        for vlan in target_vlans
+    ]
+
+    # DTP test runs once (not VLAN-specific)
+    dtp_finding = _test_dtp(interface, local_mac, timeout)
+
+    findings = double_tag_findings + [dtp_finding]
+    vulnerable_vlans = [
+        f["target_vlan"] for f in double_tag_findings if f.get("vulnerable")
+    ]
 
     return {
-        "interface":   interface,
-        "native_vlan": native_vlan,
-        "target_vlan": target_vlan,
-        "findings":    findings,
-        "vulnerable":  any(f.get("vulnerable") for f in findings),
+        "interface":       interface,
+        "native_vlan":     native_vlan,
+        "vlans_tested":    target_vlans,
+        "vulnerable_vlans": vulnerable_vlans,
+        "findings":        findings,
+        "vulnerable":      any(f.get("vulnerable") for f in findings),
     }
 
 
@@ -110,9 +162,10 @@ def _test_double_tag(interface, local_mac, native_vlan, target_vlan, probe_ip, t
     try:
         sendp(frame, iface=interface, count=3, inter=0.1, verbose=False)
     except PermissionError:
-        return {"test": "double_tagging", "error": "Permission denied — root/CAP_NET_RAW required"}
+        return {"test": "double_tagging", "target_vlan": target_vlan,
+                "error": "Permission denied — root/CAP_NET_RAW required"}
     except Exception as e:
-        return {"test": "double_tagging", "error": str(e)}
+        return {"test": "double_tagging", "target_vlan": target_vlan, "error": str(e)}
 
     done.wait(timeout=timeout + 1)
     t.join(timeout=1)
@@ -129,7 +182,7 @@ def _test_double_tag(interface, local_mac, native_vlan, target_vlan, probe_ip, t
             f"ARP replies received from VLAN {target_vlan} — double-tag hop succeeded. "
             "Ensure the native VLAN is not used for user traffic and disable DTP on access ports."
         ) if vulnerable else (
-            "No ARP replies from target VLAN. Switch may not be vulnerable, "
+            f"No ARP replies from VLAN {target_vlan}. Switch may not be vulnerable, "
             "or no host at target_ip responded."
         ),
     }
@@ -185,7 +238,7 @@ def _test_dtp(interface, local_mac, timeout) -> dict:
         "replies":    dtp_replies,
         "vulnerable": vulnerable,
         "description": (
-            f"Switch responded to DTP frames — port will negotiate trunking. "
+            "Switch responded to DTP frames — port will negotiate trunking. "
             "Set all access ports to: switchport mode access / switchport nonegotiate"
         ) if vulnerable else (
             "No DTP response. Port appears to be in static access mode or DTP is disabled."

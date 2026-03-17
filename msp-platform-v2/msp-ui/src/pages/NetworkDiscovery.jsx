@@ -10,6 +10,7 @@ import { api } from '../lib/api'
 import {
   Network, Play, Square, Loader2, CheckCircle,
   AlertTriangle, Eye, EyeOff, Trash2, X, ZoomIn, ZoomOut,
+  FileText, Download,
 } from 'lucide-react'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -263,6 +264,14 @@ function NetworkDiagram({ discovered, newMacs, showOffline, onNodeClick }) {
     setTransform(t => ({ ...t, scale: Math.max(0.35, Math.min(5, t.scale * factor)) }))
   }, [])
 
+  // Attach wheel listener as non-passive so preventDefault() works
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [onWheel])
+
   const onMouseDown = useCallback((e) => {
     if (e.button !== 0) return
     const rect = e.currentTarget.getBoundingClientRect()
@@ -298,7 +307,6 @@ function NetworkDiagram({ discovered, newMacs, showOffline, onNodeClick }) {
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
         style={{ width: '100%', height: '100%', display: 'block', cursor: isDragging ? 'grabbing' : 'grab' }}
-        onWheel={onWheel}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -471,6 +479,179 @@ function DeviceDetail({ device, onClose, isNew, onForget, onMarkKnown }) {
   )
 }
 
+// ── Report generation ──────────────────────────────────────────────────────────
+
+function buildExecutiveSummary(discovered, lastScan) {
+  const online  = discovered.filter(d => !d.offline)
+  const offline = discovered.filter(d => d.offline)
+  const date    = lastScan ? new Date(lastScan).toLocaleString() : 'N/A'
+  const lines = [
+    '═══════════════════════════════════════════════════════════════',
+    '  NETWORK DISCOVERY — EXECUTIVE SUMMARY',
+    `  Generated: ${new Date().toLocaleString()}`,
+    '═══════════════════════════════════════════════════════════════',
+    '',
+    'OVERVIEW',
+    '────────',
+    `  Total devices discovered : ${discovered.length}`,
+    `  Currently online         : ${online.length}`,
+    `  Currently offline        : ${offline.length}`,
+    `  Last scan completed      : ${date}`,
+    '',
+    'FINDINGS',
+    '────────',
+    `  The network scan identified ${discovered.length} unique device${discovered.length !== 1 ? 's' : ''} across`,
+    `  the monitored subnet. Of these, ${online.length} device${online.length !== 1 ? 's are' : ' is'} currently`,
+    `  reachable and ${offline.length} ${offline.length !== 1 ? 'have' : 'has'} not responded in the most recent scan.`,
+    '',
+  ]
+
+  // Vendor breakdown
+  const vendorMap = {}
+  for (const d of discovered) {
+    const v = (d.vendor || 'Unknown').split(' ')[0]
+    vendorMap[v] = (vendorMap[v] || 0) + 1
+  }
+  const topVendors = Object.entries(vendorMap).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  if (topVendors.length > 0) {
+    lines.push('TOP DEVICE VENDORS')
+    lines.push('──────────────────')
+    for (const [v, c] of topVendors) lines.push(`  ${v.padEnd(20)} ${c} device${c !== 1 ? 's' : ''}`)
+    lines.push('')
+  }
+
+  lines.push('RECOMMENDATIONS')
+  lines.push('───────────────')
+  if (offline.length > 0) lines.push(`  • Review ${offline.length} offline device${offline.length !== 1 ? 's' : ''} — confirm whether they are decommissioned or unreachable.`)
+  lines.push('  • Ensure all discovered devices are accounted for in your asset inventory.')
+  lines.push('  • Investigate any unrecognized vendor or device that does not belong on this network.')
+  lines.push('')
+  lines.push('═══════════════════════════════════════════════════════════════')
+
+  return lines.join('\n')
+}
+
+function buildTechnicalReport(discovered, lastScan) {
+  const date = lastScan ? new Date(lastScan).toLocaleString() : 'N/A'
+  const lines = [
+    '═══════════════════════════════════════════════════════════════════════════════════',
+    '  NETWORK DISCOVERY — DETAILED TECHNICAL REPORT',
+    `  Generated: ${new Date().toLocaleString()}`,
+    `  Last scan: ${date}`,
+    '═══════════════════════════════════════════════════════════════════════════════════',
+    '',
+    'DISCOVERED DEVICES',
+    '──────────────────',
+    '',
+    `  ${'STATUS'.padEnd(8)}  ${'IP ADDRESS'.padEnd(16)}  ${'MAC ADDRESS'.padEnd(18)}  ${'VENDOR'.padEnd(24)}  ${'FIRST SEEN'.padEnd(22)}  LAST SEEN`,
+    `  ${''.padEnd(8, '─')}  ${''.padEnd(16, '─')}  ${''.padEnd(18, '─')}  ${''.padEnd(24, '─')}  ${''.padEnd(22, '─')}  ${''.padEnd(22, '─')}`,
+  ]
+
+  const sorted = [...discovered].sort((a, b) =>
+    (a.offline ? 1 : 0) - (b.offline ? 1 : 0) ||
+    (a.ip || '').localeCompare(b.ip || '', undefined, { numeric: true })
+  )
+
+  for (const d of sorted) {
+    const status    = d.offline ? 'OFFLINE' : 'ONLINE'
+    const ip        = (d.ip || '—').padEnd(16)
+    const mac       = d.mac.padEnd(18)
+    const vendor    = (d.vendor || '—').slice(0, 24).padEnd(24)
+    const firstSeen = new Date(d.firstSeen).toLocaleString().padEnd(22)
+    const lastSeen  = new Date(d.lastSeen).toLocaleString()
+    lines.push(`  ${status.padEnd(8)}  ${ip}  ${mac}  ${vendor}  ${firstSeen}  ${lastSeen}`)
+  }
+
+  lines.push('')
+  lines.push('SUMMARY')
+  lines.push('───────')
+  lines.push(`  Total   : ${discovered.length}`)
+  lines.push(`  Online  : ${discovered.filter(d => !d.offline).length}`)
+  lines.push(`  Offline : ${discovered.filter(d => d.offline).length}`)
+  lines.push('')
+  lines.push('═══════════════════════════════════════════════════════════════════════════════════')
+
+  return lines.join('\n')
+}
+
+function ReportModal({ discovered, lastScan, onClose }) {
+  const [tab, setTab] = useState('executive')
+  const content = tab === 'executive'
+    ? buildExecutiveSummary(discovered, lastScan)
+    : buildTechnicalReport(discovered, lastScan)
+
+  const download = () => {
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url
+    a.download = `network-${tab}-report-${new Date().toISOString().slice(0, 10)}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: '#00000090', zIndex: 1000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+    }}>
+      <div style={{
+        background: '#0d1117', border: '1px solid #1e2530', borderRadius: 12,
+        width: '100%', maxWidth: 860, maxHeight: '88vh',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '14px 20px', borderBottom: '1px solid #1e2530',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <FileText size={16} color="#06b6d4" />
+            <span style={{ fontWeight: 700, fontSize: 15, color: '#f3f4f6' }}>Network Scan Report</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={download} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: '#0a1a2a', border: '1px solid #0e4260', borderRadius: 6,
+              color: '#06b6d4', fontSize: 12, padding: '5px 12px', cursor: 'pointer',
+            }}>
+              <Download size={12} /> Download .txt
+            </button>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4b5563' }}>
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #1e2530' }}>
+          {[['executive', 'Executive Summary'], ['technical', 'Technical Report']].map(([key, label]) => (
+            <button key={key} onClick={() => setTab(key)} style={{
+              padding: '9px 20px', fontSize: 12, fontWeight: tab === key ? 700 : 400,
+              color: tab === key ? '#06b6d4' : '#4b5563',
+              background: 'none', border: 'none', cursor: 'pointer',
+              borderBottom: tab === key ? '2px solid #06b6d4' : '2px solid transparent',
+              marginBottom: -1,
+            }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <pre style={{
+          flex: 1, overflowY: 'auto', margin: 0,
+          padding: '16px 20px', fontSize: 11.5, lineHeight: 1.6,
+          color: '#9ca3af', fontFamily: 'JetBrains Mono, Consolas, monospace',
+          whiteSpace: 'pre', background: '#070a0e',
+        }}>
+          {content}
+        </pre>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function NetworkDiscoveryPage() {
@@ -488,6 +669,7 @@ export default function NetworkDiscoveryPage() {
   const [interfaces,     setInterfaces]     = useState([])   // from sysinfo
   const [ifaceLoading,   setIfaceLoading]   = useState(false)
   const [selectedDevice, setSelectedDevice] = useState(null) // diagram click
+  const [showReport,     setShowReport]     = useState(false)
 
   // Load active agents
   useEffect(() => {
@@ -740,6 +922,12 @@ export default function NetworkDiscoveryPage() {
                   {showOffline ? <EyeOff size={12} /> : <Eye size={12} />}
                   {showOffline ? 'Hide offline' : 'Show offline'}
                 </button>
+                <button
+                  onClick={() => setShowReport(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#0a1a2a', border: '1px solid #0e4260', borderRadius: 6, cursor: 'pointer', fontSize: 11, color: '#06b6d4', padding: '4px 10px' }}
+                >
+                  <FileText size={11} /> Generate Report
+                </button>
               </div>
             </div>
             <div style={{ position: 'relative', height: 460 }}>
@@ -836,6 +1024,14 @@ export default function NetworkDiscoveryPage() {
             Select an agent and click <strong style={{ color: '#374151' }}>Start Monitoring</strong> to begin scanning.
           </p>
         </div>
+      )}
+
+      {showReport && (
+        <ReportModal
+          discovered={discovered}
+          lastScan={lastScan}
+          onClose={() => setShowReport(false)}
+        />
       )}
     </div>
   )

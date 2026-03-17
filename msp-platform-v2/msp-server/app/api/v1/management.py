@@ -329,9 +329,11 @@ ALLOWED_TASK_TYPES: frozenset[str] = frozenset({
     "run_snmp_query",
     # Security & compliance
     "run_ssl_check", "run_dns_health", "run_vuln_scan", "run_security_audit",
-    "run_default_creds", "run_cleartext_services",
+    "run_default_creds", "run_cleartext_services", "run_vlan_hop",
     # SMB
     "run_smb_enum",
+    # Network fingerprinting
+    "run_device_fingerprint",
     # Active Directory
     "run_ad_discover", "run_ad_recon",
     # Prospecting

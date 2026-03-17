@@ -20,7 +20,8 @@ Outbound message types (server → device):
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
@@ -126,6 +127,10 @@ async def device_channel(
                 task.dispatched_at = datetime.now(timezone.utc)
             await db.commit()
 
+        # Auto-dispatch sysinfo if never collected or stale
+        async with AsyncSessionLocal() as db:
+            await _maybe_auto_sysinfo(db, device, ws)
+
         # Main receive loop
         while True:
             try:
@@ -214,6 +219,52 @@ async def device_channel(
                 .values(status=DeviceStatus.OFFLINE)
             )
             await db.commit()
+
+
+_SYSINFO_STALE_AFTER = timedelta(days=7)
+
+
+async def _maybe_auto_sysinfo(db: AsyncSession, device: Device, ws: WebSocket) -> None:
+    """Dispatch get_sysinfo automatically on connect if never run or stale (>7 days)."""
+    now = datetime.now(timezone.utc)
+    if device.last_sysinfo_at and (now - device.last_sysinfo_at) < _SYSINFO_STALE_AFTER:
+        return  # fresh enough
+
+    # Don't dispatch a second one if one is already in flight
+    existing = await db.execute(
+        select(Task).where(
+            and_(
+                Task.device_id == device.id,
+                Task.task_type == "get_sysinfo",
+                Task.status.in_([TaskStatus.QUEUED, TaskStatus.DISPATCHED]),
+            )
+        ).limit(1)
+    )
+    if existing.scalar_one_or_none():
+        return
+
+    task = Task(
+        id=str(uuid.uuid4()),
+        device_id=device.id,
+        msp_id=device.msp_id,
+        customer_id=device.customer_id,
+        task_type="get_sysinfo",
+        payload={"_auto": True},
+        timeout_seconds=60,
+        status=TaskStatus.DISPATCHED,
+        dispatched_at=now,
+    )
+    db.add(task)
+    await db.commit()
+
+    await ws.send_json({
+        "type": "task",
+        "id": task.id,
+        "task_type": "get_sysinfo",
+        "payload": {"_auto": True},
+        "timeout_seconds": 60,
+    })
+    logger.info("auto_sysinfo_dispatched device_id=%s", device.id)
 
 
 async def _handle_heartbeat(db: AsyncSession, device_id: str, msg: dict) -> None:

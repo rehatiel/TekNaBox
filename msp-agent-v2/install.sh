@@ -319,6 +319,25 @@ EOF
 chown root:msp-agent /etc/msp-agent/config.json
 chmod 660 /etc/msp-agent/config.json  # group-writable so agent can update tokens
 
+# ── Stop existing service ─────────────────────────────────────────────────────
+if systemctl is-active --quiet msp-agent 2>/dev/null; then
+    info "Stopping existing msp-agent service..."
+    systemctl stop msp-agent
+    # Wait up to 10 s for the process to exit cleanly
+    for _i in $(seq 1 10); do
+        systemctl is-active --quiet msp-agent 2>/dev/null || break
+        sleep 1
+    done
+    if systemctl is-active --quiet msp-agent 2>/dev/null; then
+        warn "Service did not stop cleanly — sending SIGKILL"
+        systemctl kill --signal=SIGKILL msp-agent 2>/dev/null || true
+        sleep 1
+    fi
+    info "Previous service stopped ✓"
+elif systemctl list-units --all --no-pager 2>/dev/null | grep -q 'msp-agent.service'; then
+    info "msp-agent service present but not running — continuing"
+fi
+
 # ── Install agent files ───────────────────────────────────────────────────────
 info "Installing agent files..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
