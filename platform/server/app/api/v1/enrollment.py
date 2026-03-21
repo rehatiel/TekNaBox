@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, update as sql_update
 
 from app.core.database import get_db
 from app.core.security import (
@@ -58,6 +58,15 @@ async def enroll_device(
     device = result.scalar_one_or_none()
     if not device:
         raise HTTPException(status_code=401, detail="Invalid or already used enrollment secret")
+
+    # If this hardware_id was previously enrolled on a different device record,
+    # clear it so the unique constraint doesn't block re-enrollment.
+    await db.execute(
+        sql_update(Device)
+        .where(Device.hardware_id == body.hardware_id)
+        .where(Device.id != device.id)
+        .values(hardware_id=None)
+    )
 
     # Consume the enrollment secret
     device.enrollment_secret_hash = None

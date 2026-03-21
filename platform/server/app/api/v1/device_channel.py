@@ -100,6 +100,16 @@ async def device_channel(
     await ws.accept()
     await cm.register(device_id, ws)
 
+    # Mark device online immediately — don't wait for the first heartbeat (30s)
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            sql_update(Device)
+            .where(Device.id == device_id)
+            .where(Device.status != DeviceStatus.REVOKED)
+            .values(status=DeviceStatus.ACTIVE, last_seen_at=datetime.now(timezone.utc))
+        )
+        await db.commit()
+
     try:
         # Push current config to device on connect
         from app.core.config import get_settings as _settings

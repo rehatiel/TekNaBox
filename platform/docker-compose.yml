@@ -91,6 +91,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_WS_BASE: ${VITE_WS_BASE}
+        VITE_API_BASE: ${VITE_API_BASE}
     restart: unless-stopped
     depends_on:
       - api

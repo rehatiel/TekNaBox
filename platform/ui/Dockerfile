@@ -8,11 +8,14 @@ RUN npm install
 
 COPY . .
 
-# VITE_WS_BASE: public URL of the API server (e.g. https://tekn-api.example.com)
-# Used only by terminal.html and bandwidth.html popups to construct WebSocket URLs.
-# Regular API calls use relative paths via the nginx proxy — do NOT set VITE_API_BASE.
+# VITE_WS_BASE:  WebSocket URL of the API (e.g. wss://tekn-api.example.com)
+#                Used by terminal.html and bandwidth.html popups.
+# VITE_API_BASE: HTTPS URL of the API (e.g. https://tekn-api.example.com)
+#                Used as fallback for enrollment URLs if the server-side bootstrap_url is unavailable.
 ARG VITE_WS_BASE
+ARG VITE_API_BASE
 ENV VITE_WS_BASE=$VITE_WS_BASE
+ENV VITE_API_BASE=$VITE_API_BASE
 
 RUN npm run build
 
