@@ -900,7 +900,7 @@ export default function DeviceDetail() {
             <label className="label">New Enrollment Secret</label>
             <CodeBlock>{resetResult.enrollment_secret}</CodeBlock>
             <p className="text-xs text-slate-600 mt-2">Run on the target machine:</p>
-            <CodeBlock>{`curl -fsSL ${resetResult.bootstrap_url} | sudo bash -s -- --secret ${resetResult.enrollment_secret}`}</CodeBlock>
+            <CodeBlock>{`curl -fsSL ${import.meta.env.VITE_API_BASE}/v1/agent/bootstrap | sudo bash -s -- --secret ${resetResult.enrollment_secret}`}</CodeBlock>
           </div>
           <button onClick={() => setResetResult(null)} className="btn-primary w-full mt-4">Done</button>
         </Modal>

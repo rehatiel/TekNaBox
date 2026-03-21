@@ -19,6 +19,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.auth import get_current_operator, require_role, get_current_device, bearer
+from app.core.config import get_settings
 from app.core.security import (
     generate_enrollment_secret, hash_enrollment_secret,
     hash_password, create_operator_token, verify_password,
@@ -75,6 +76,20 @@ import aiofiles
 import os
 
 router = APIRouter(prefix="/v1", tags=["management"])
+
+
+def _api_base(request: Request) -> str:
+    """Return the externally reachable API base URL.
+
+    Prefers the API_BASE_URL setting (explicit config) over header detection,
+    which is unreliable when the UI and API sit behind different NPM proxy hosts.
+    """
+    cfg = get_settings().api_base_url
+    if cfg:
+        return cfg.rstrip("/")
+    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host   = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    return f"{scheme}://{host}"
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -238,9 +253,7 @@ async def create_device(
     )
     await db.commit()
 
-    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
-    host   = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
-    bootstrap_url = f"{scheme}://{host}/v1/agent/bootstrap"
+    bootstrap_url = f"{_api_base(request)}/v1/agent/bootstrap"
 
     return CreateDeviceResponse(device_id=device.id, enrollment_secret=secret, bootstrap_url=bootstrap_url)
 
@@ -332,14 +345,10 @@ async def reset_device(
     )
     await db.commit()
 
-    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
-    host   = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
-    bootstrap_url = f"{scheme}://{host}/v1/agent/bootstrap"
-
     return {
         "status": "reset",
         "enrollment_secret": secret,  # shown once — operator must copy this
-        "bootstrap_url": bootstrap_url,
+        "bootstrap_url": f"{_api_base(request)}/v1/agent/bootstrap",
     }
 
 
@@ -414,6 +423,20 @@ async def delete_device(
         Task,              # → device_id
     ):
         await db.execute(sql_delete(model).where(model.device_id == device_id))
+
+    # DiscoveredDevice.source_device_id FKs to devices.id (no ON DELETE rule).
+    # Must delete DeviceScanRecord children first, then the DiscoveredDevice rows.
+    discovered_ids_q = select(DiscoveredDevice.id).where(
+        DiscoveredDevice.source_device_id == device_id
+    )
+    await db.execute(
+        sql_delete(DeviceScanRecord).where(
+            DeviceScanRecord.discovered_device_id.in_(discovered_ids_q)
+        )
+    )
+    await db.execute(
+        sql_delete(DiscoveredDevice).where(DiscoveredDevice.source_device_id == device_id)
+    )
 
     await db.delete(device)
     await db.commit()
@@ -1106,9 +1129,7 @@ async def agent_bootstrap(request: Request):
     Usage:
         curl -fsSL https://yourserver.com/v1/agent/bootstrap | sudo bash -s -- --secret <SECRET>
     """
-    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
-    host   = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
-    server_url = f"{scheme}://{host}"
+    server_url = _api_base(request)
 
     script = f"""#!/bin/bash
 # TekNaBox Agent One-Line Installer

@@ -297,7 +297,8 @@ function CreateDeviceModal({ sites, onClose, onCreated }) {
     setError('')
     try {
       const data = await api.createDevice({ name, site_id: siteId, role })
-      onCreated(data.enrollment_secret, name, data.bootstrap_url)
+      const bootstrapUrl = `${import.meta.env.VITE_API_BASE}/v1/agent/bootstrap`
+      onCreated(data.enrollment_secret, name, bootstrapUrl)
     } catch (err) {
       setError(err.message)
     } finally {

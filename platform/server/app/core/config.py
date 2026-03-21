@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     bootstrap_email: Optional[str] = None
     bootstrap_password: Optional[str] = None
 
+    # ── Public API URL ─────────────────────────────────────────────────────────
+    # Set this to the externally reachable API base URL (e.g. https://api.example.com).
+    # Used to build enrollment bootstrap URLs. When unset, the URL is derived from
+    # the incoming request headers, which can be wrong behind some reverse proxies.
+    api_base_url: Optional[str] = None
+
     # ── Token expiry ──────────────────────────────────────────────────────────
     operator_token_expire_minutes: int = 60
     device_token_expire_hours: int = 24 * 7
