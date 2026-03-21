@@ -18,8 +18,11 @@ from app.core.database import AsyncSessionLocal
 from app.models.models import (
     Device, DeviceStatus, Task, TaskStatus,
     DeviceUpdateJob, UpdateStatus, ClientRelease,
+    AlertConfig, ScanFinding, FindingSeverity,
 )
 from app.services.update_service import notify_device_of_update
+from app.services.mailer import send_offline_alert, send_findings_alert
+from app.services.webhooker import send_offline_webhook, send_findings_webhook
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -55,7 +58,7 @@ async def task_timeout_watchdog():
 
 
 async def heartbeat_monitor():
-    """Mark devices OFFLINE if not seen within heartbeat timeout."""
+    """Mark devices OFFLINE if not seen within heartbeat timeout. Send alert emails."""
     while True:
         await asyncio.sleep(settings.heartbeat_monitor_interval)
         try:
@@ -73,12 +76,33 @@ async def heartbeat_monitor():
                         )
                     )
                     .values(status=DeviceStatus.OFFLINE)
-                    .returning(Device.id)
+                    .returning(Device.id, Device.name, Device.last_ip, Device.msp_id)
                 )
                 gone_offline = result.fetchall()
                 await db.commit()
-                if gone_offline:
-                    logger.info(f"devices_marked_offline count={len(gone_offline)}")
+
+                if not gone_offline:
+                    continue
+
+                logger.info(f"devices_marked_offline count={len(gone_offline)}")
+
+                # Group by MSP and send alert emails
+                from collections import defaultdict
+                by_msp: dict[str, list] = defaultdict(list)
+                for row in gone_offline:
+                    by_msp[row.msp_id].append({"name": row.name, "last_ip": row.last_ip})
+
+                for msp_id, devices in by_msp.items():
+                    cfg_result = await db.execute(
+                        select(AlertConfig).where(AlertConfig.msp_id == msp_id)
+                    )
+                    cfg = cfg_result.scalar_one_or_none()
+                    if cfg and cfg.notify_offline:
+                        if cfg.alert_email:
+                            await send_offline_alert(cfg.alert_email, devices)
+                        if cfg.webhook_url:
+                            await send_offline_webhook(cfg.webhook_url, devices)
+
         except Exception as e:
             logger.error(f"heartbeat_monitor_error: {e}")
 
@@ -132,7 +156,12 @@ async def wan_uptime_monitor():
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            try:
+                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                return False, None
             if proc.returncode == 0:
                 m = re.search(r'time=([\d.]+)', stdout.decode())
                 rtt = float(m.group(1)) if m else None
@@ -178,6 +207,67 @@ async def wan_uptime_monitor():
             logger.error(f"wan_uptime_monitor_error: {e}")
 
 
+async def findings_alerter():
+    """
+    Every 5 minutes: check for new critical/high findings since last alert.
+    Sends a digest email per MSP if new findings exist and notify is enabled.
+    """
+    while True:
+        await asyncio.sleep(300)
+        try:
+            async with AsyncSessionLocal() as db:
+                configs_result = await db.execute(
+                    select(AlertConfig).where(
+                        and_(
+                            (AlertConfig.alert_email.isnot(None) | AlertConfig.webhook_url.isnot(None)),
+                            (AlertConfig.notify_critical_findings == True) |  # noqa: E712
+                            (AlertConfig.notify_high_findings == True),       # noqa: E712
+                        )
+                    )
+                )
+                configs = configs_result.scalars().all()
+
+                for cfg in configs:
+                    cutoff = cfg.last_finding_alert_at or (
+                        datetime.now(timezone.utc) - timedelta(minutes=5)
+                    )
+                    severity_filter = []
+                    if cfg.notify_critical_findings:
+                        severity_filter.append(FindingSeverity.CRITICAL)
+                    if cfg.notify_high_findings:
+                        severity_filter.append(FindingSeverity.HIGH)
+
+                    findings_result = await db.execute(
+                        select(ScanFinding).where(
+                            and_(
+                                ScanFinding.msp_id == cfg.msp_id,
+                                ScanFinding.severity.in_(severity_filter),
+                                ScanFinding.found_at > cutoff,
+                                ScanFinding.acknowledged == False,  # noqa: E712
+                            )
+                        ).order_by(ScanFinding.found_at.desc()).limit(20)
+                    )
+                    findings = findings_result.scalars().all()
+
+                    if findings:
+                        payload = [
+                            {"severity": f.severity.value, "title": f.title, "device_id": f.device_id}
+                            for f in findings
+                        ]
+                        if cfg.alert_email:
+                            await send_findings_alert(cfg.alert_email, payload)
+                        if cfg.webhook_url:
+                            await send_findings_webhook(cfg.webhook_url, payload)
+
+                    cfg.last_finding_alert_at = datetime.now(timezone.utc)
+
+                if configs:
+                    await db.commit()
+
+        except Exception as e:
+            logger.error(f"findings_alerter_error: {e}")
+
+
 async def main():
     logging.basicConfig(level=logging.INFO)
     logger.info(
@@ -190,6 +280,7 @@ async def main():
         heartbeat_monitor(),
         update_scheduler(),
         wan_uptime_monitor(),
+        findings_alerter(),
     )
 
 

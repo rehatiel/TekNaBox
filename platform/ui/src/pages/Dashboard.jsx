@@ -4,9 +4,19 @@ import { api } from '../lib/api'
 import { StatusBadge, Spinner, Table, TR, TD } from '../components/ui'
 import {
   Monitor, Activity, ShieldAlert, CheckSquare,
-  ArrowRight, Wifi, Clock, AlertTriangle
+  ArrowRight, Wifi, Clock, AlertTriangle, Cpu, HardDrive, MemoryStick
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+
+function MiniBar({ pct, warn = 70, crit = 85, wide = false }) {
+  if (pct == null) return null
+  const color = pct >= crit ? 'bg-red-DEFAULT' : pct >= warn ? 'bg-amber-DEFAULT' : 'bg-green-DEFAULT'
+  return (
+    <div className={`h-1 rounded-full bg-bg-border overflow-hidden ${wide ? 'flex-1' : 'w-16'}`}>
+      <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, pct)}%` }} />
+    </div>
+  )
+}
 
 function StatCard({ label, value, icon: Icon, accent = 'slate', to, sub }) {
   const colors = {
@@ -77,6 +87,16 @@ export default function Dashboard() {
   const criticalFindings = findings.filter(f => !f.acknowledged && f.severity === 'critical').length
   const highFindings = findings.filter(f => !f.acknowledged && f.severity === 'high').length
 
+  // Fleet health
+  const healthDevices = devices.filter(d => d.last_sysinfo_at)
+  const avgRam  = healthDevices.length ? Math.round(healthDevices.reduce((s, d) => s + (d.last_mem_pct  || 0), 0) / healthDevices.length) : null
+  const avgDisk = healthDevices.length ? Math.round(healthDevices.reduce((s, d) => s + (d.last_disk_pct || 0), 0) / healthDevices.length) : null
+  const warnCount = healthDevices.filter(d =>
+    (d.last_mem_pct  != null && d.last_mem_pct  >= 80) ||
+    (d.last_disk_pct != null && d.last_disk_pct >= 85) ||
+    (d.last_cpu_temp_c != null && d.last_cpu_temp_c >= 70)
+  ).length
+
   // Uptime map: device_id → { wan, lan }
   const uptimeByDevice = Object.fromEntries(uptime.map(u => [u.device_id, u]))
 
@@ -107,6 +127,51 @@ export default function Dashboard() {
         <StatCard label="Tasks (24h)"      value={tasks24h.length}  icon={CheckSquare} accent="slate" to="/tasks"    sub={failedTasks24h > 0 ? `${failedTasks24h} failed` : 'No failures'} />
       </div>
 
+      {/* Fleet health strip — only shown when health data is available */}
+      {healthDevices.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="card px-4 py-3 flex items-center gap-3">
+            <div className="w-7 h-7 rounded bg-bg-elevated flex items-center justify-center shrink-0">
+              <MemoryStick className="w-3.5 h-3.5 text-slate-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-slate-600 mb-1">Avg RAM usage</p>
+              <div className="flex items-center gap-2">
+                <MiniBar pct={avgRam} wide />
+                <span className={`text-xs font-mono ${avgRam >= 85 ? 'text-red-DEFAULT' : avgRam >= 70 ? 'text-amber-DEFAULT' : 'text-green-DEFAULT'}`}>
+                  {avgRam != null ? `${avgRam}%` : '—'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="card px-4 py-3 flex items-center gap-3">
+            <div className="w-7 h-7 rounded bg-bg-elevated flex items-center justify-center shrink-0">
+              <HardDrive className="w-3.5 h-3.5 text-slate-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-slate-600 mb-1">Avg disk usage</p>
+              <div className="flex items-center gap-2">
+                <MiniBar pct={avgDisk} warn={75} crit={90} wide />
+                <span className={`text-xs font-mono ${avgDisk >= 90 ? 'text-red-DEFAULT' : avgDisk >= 75 ? 'text-amber-DEFAULT' : 'text-green-DEFAULT'}`}>
+                  {avgDisk != null ? `${avgDisk}%` : '—'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="card px-4 py-3 flex items-center gap-3">
+            <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${warnCount > 0 ? 'bg-amber-dim' : 'bg-bg-elevated'}`}>
+              <AlertTriangle className={`w-3.5 h-3.5 ${warnCount > 0 ? 'text-amber-DEFAULT' : 'text-slate-600'}`} />
+            </div>
+            <div>
+              <p className="text-xs text-slate-600 mb-0.5">Health warnings</p>
+              <p className={`font-display font-700 text-xl ${warnCount > 0 ? 'text-amber-DEFAULT' : 'text-slate-600'}`}>
+                {warnCount}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         {/* Device status + uptime */}
         <div className="card">
@@ -118,7 +183,7 @@ export default function Dashboard() {
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
-          <Table headers={['Device', 'Status', 'WAN', 'LAN', 'Last Seen']}>
+          <Table headers={['Device', 'Status', 'Health', 'WAN', 'Last Seen']}>
             {recentDevices.map(d => {
               const u = uptimeByDevice[d.id]
               return (
@@ -129,8 +194,27 @@ export default function Dashboard() {
                     </Link>
                   </TD>
                   <TD><StatusBadge status={d.status} /></TD>
+                  <TD>
+                    {d.last_sysinfo_at ? (
+                      <div className="flex flex-col gap-1">
+                        {d.last_mem_pct  != null && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-slate-700 w-7">RAM</span>
+                            <MiniBar pct={d.last_mem_pct} />
+                          </div>
+                        )}
+                        {d.last_disk_pct != null && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-slate-700 w-7">Disk</span>
+                            <MiniBar pct={d.last_disk_pct} warn={75} crit={90} />
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-700">—</span>
+                    )}
+                  </TD>
                   <TD><UptimePill pct={u?.wan?.uptime_pct} /></TD>
-                  <TD><UptimePill pct={u?.lan?.uptime_pct} /></TD>
                   <TD>
                     <span className="text-xs text-slate-600 font-mono">
                       {d.last_seen_at

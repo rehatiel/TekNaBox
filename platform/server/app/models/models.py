@@ -624,3 +624,36 @@ class ScanFinding(Base):
         Index("ix_finding_msp_severity",    "msp_id",    "severity"),
         Index("ix_finding_task",            "task_id"),
     )
+
+
+# ── Alert Configuration ────────────────────────────────────────────────────────
+
+class AlertConfig(Base):
+    """Per-MSP alert preferences. One row per MSP, created on first save."""
+    __tablename__ = "alert_configs"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=new_uuid)
+    msp_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("msp_organizations.id"),
+        nullable=False, unique=True,
+    )
+
+    # Recipients
+    alert_email: Mapped[Optional[str]] = mapped_column(String(255))
+    webhook_url: Mapped[Optional[str]] = mapped_column(String(2048))
+
+    # Toggles
+    notify_offline:            Mapped[bool] = mapped_column(Boolean, default=True,  nullable=False)
+    notify_critical_findings:  Mapped[bool] = mapped_column(Boolean, default=True,  nullable=False)
+    notify_high_findings:      Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    notify_failed_tasks:       Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Used by findings alerter to avoid re-alerting old findings
+    last_finding_alert_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    __table_args__ = (
+        Index("ix_alert_config_msp_id", "msp_id"),
+    )

@@ -15,11 +15,11 @@ import {
 // ── Severity helpers ──────────────────────────────────────────────────────────
 
 const SEV = {
-  critical: { color: '#ef4444', bg: '#450a0a', border: '#7f1d1d', label: 'Critical', order: 0 },
-  high:     { color: '#f97316', bg: '#431407', border: '#7c2d12', label: 'High',     order: 1 },
-  medium:   { color: '#eab308', bg: '#422006', border: '#713f12', label: 'Medium',   order: 2 },
-  low:      { color: '#06b6d4', bg: '#0c1a1f', border: '#164e63', label: 'Low',      order: 3 },
-  info:     { color: '#6b7280', bg: '#111827', border: '#1f2937', label: 'Info',     order: 4 },
+  critical: { color: 'var(--sev-critical-color)', bg: 'var(--sev-critical-bg)', border: 'var(--sev-critical-border)', label: 'Critical', order: 0 },
+  high:     { color: 'var(--sev-high-color)',     bg: 'var(--sev-high-bg)',     border: 'var(--sev-high-border)',     label: 'High',     order: 1 },
+  medium:   { color: 'var(--sev-medium-color)',   bg: 'var(--sev-medium-bg)',   border: 'var(--sev-medium-border)',   label: 'Medium',   order: 2 },
+  low:      { color: 'var(--sev-low-color)',      bg: 'var(--sev-low-bg)',      border: 'var(--sev-low-border)',      label: 'Low',      order: 3 },
+  info:     { color: 'var(--sev-info-color)',     bg: 'var(--sev-info-bg)',     border: 'var(--sev-info-border)',     label: 'Info',     order: 4 },
 }
 
 function SevBadge({ sev }) {
@@ -124,15 +124,15 @@ function PayloadForm({ task, payload, onChange }) {
       {task.fields.map(f => {
         if (f.type === 'hostlist') return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: '#9ca3af', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
             <textarea
               rows={4}
               placeholder={f.placeholder}
               value={Array.isArray(payload[f.key]) ? payload[f.key].join('\n') : payload[f.key] || ''}
               onChange={e => onChange({ ...payload, [f.key]: e.target.value.split('\n').map(s => s.trim()).filter(Boolean) })}
               style={{
-                background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-                color: '#e5e7eb', padding: '8px 10px', fontSize: 12,
+                background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
+                color: 'var(--input-text)', padding: '8px 10px', fontSize: 12,
                 fontFamily: 'JetBrains Mono, monospace', resize: 'vertical',
               }}
             />
@@ -140,7 +140,7 @@ function PayloadForm({ task, payload, onChange }) {
         )
         if (f.type === 'multicheck') return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 12, color: '#9ca3af', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {f.options.map(opt => {
                 const active = (payload[f.key] || []).includes(opt)
@@ -151,9 +151,9 @@ function PayloadForm({ task, payload, onChange }) {
                   }} style={{
                     fontSize: 11, padding: '3px 10px', borderRadius: 20, cursor: 'pointer',
                     fontFamily: 'JetBrains Mono, monospace', transition: 'all 0.15s',
-                    background: active ? '#0e4155' : '#111827',
-                    border: `1px solid ${active ? '#06b6d4' : '#1e2530'}`,
-                    color: active ? '#06b6d4' : '#6b7280',
+                    background: active ? 'var(--cyan-muted)' : 'var(--bg-elevated)',
+                    border: `1px solid ${active ? 'var(--cyan-DEFAULT)' : 'var(--bg-border)'}`,
+                    color: active ? 'var(--cyan-DEFAULT)' : 'var(--label-color)',
                   }}>{opt}</button>
                 )
               })}
@@ -162,7 +162,7 @@ function PayloadForm({ task, payload, onChange }) {
         )
         return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: '#9ca3af', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
             <input
               type={f.type === 'password' ? 'password' : f.type === 'number' ? 'number' : 'text'}
               placeholder={f.placeholder || ''}
@@ -173,8 +173,8 @@ function PayloadForm({ task, payload, onChange }) {
                 [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value
               })}
               style={{
-                background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-                color: '#e5e7eb', padding: '7px 10px', fontSize: 13,
+                background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
+                color: 'var(--input-text)', padding: '7px 10px', fontSize: 13,
                 fontFamily: 'JetBrains Mono, monospace', outline: 'none',
               }}
             />
@@ -197,13 +197,13 @@ function FindingCard({ f }) {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
         <SevBadge sev={f.severity} />
-        <span style={{ flex: 1, fontSize: 13, color: '#e5e7eb', fontWeight: 500 }}>{f.title}</span>
-        {f.host && <span style={{ fontSize: 11, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>{f.host}</span>}
-        {open ? <ChevronDown size={14} color="#6b7280" /> : <ChevronRight size={14} color="#6b7280" />}
+        <span style={{ flex: 1, fontSize: 13, color: 'var(--input-text)', fontWeight: 500 }}>{f.title}</span>
+        {f.host && <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.host}</span>}
+        {open ? <ChevronDown size={14} color="var(--btn-ghost-color)" /> : <ChevronRight size={14} color="var(--btn-ghost-color)" />}
       </div>
       {open && (
         <div style={{ borderTop: `1px solid ${s.border}`, padding: '10px 14px' }}>
-          <p style={{ fontSize: 13, color: '#9ca3af', margin: 0, lineHeight: 1.6 }}>{f.detail}</p>
+          <p style={{ fontSize: 13, color: 'var(--btn-ghost-color)', margin: 0, lineHeight: 1.6 }}>{f.detail}</p>
         </div>
       )}
     </div>
@@ -267,7 +267,7 @@ function TaskPanel({ task, deviceId }) {
 
   return (
     <div style={{
-      background: '#0d1117', border: '1px solid #1e2530', borderRadius: 12,
+      background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 12,
       overflow: 'hidden', transition: 'border-color 0.2s',
     }}>
       {/* Header */}
@@ -283,39 +283,39 @@ function TaskPanel({ task, deviceId }) {
           <Icon size={16} color={task.color} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#f3f4f6' }}>{task.label}</div>
-          <div style={{ fontSize: 12, color: '#4b5563', marginTop: 2 }}>{task.description}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--input-text)' }}>{task.label}</div>
+          <div style={{ fontSize: 12, color: 'var(--label-color)', marginTop: 2 }}>{task.description}</div>
         </div>
 
         {/* Status indicators */}
-        {running && <Loader2 size={16} color="#06b6d4" style={{ animation: 'spin 1s linear infinite' }} />}
+        {running && <Loader2 size={16} color="var(--cyan-DEFAULT)" style={{ animation: 'spin 1s linear infinite' }} />}
         {result && !running && (
           <div style={{ display: 'flex', gap: 6 }}>
-            {critCount > 0 && <span style={{ fontSize: 11, background: '#450a0a', color: '#ef4444', border: '1px solid #7f1d1d', borderRadius: 4, padding: '1px 7px', fontWeight: 700 }}>{critCount} CRIT</span>}
-            {highCount > 0 && <span style={{ fontSize: 11, background: '#431407', color: '#f97316', border: '1px solid #7c2d12', borderRadius: 4, padding: '1px 7px', fontWeight: 700 }}>{highCount} HIGH</span>}
-            {findings.length === 0 && <CheckCircle size={16} color="#22c55e" />}
+            {critCount > 0 && <span style={{ fontSize: 11, background: 'var(--sev-critical-bg)', color: 'var(--sev-critical-color)', border: '1px solid var(--sev-critical-border)', borderRadius: 4, padding: '1px 7px', fontWeight: 700 }}>{critCount} CRIT</span>}
+            {highCount > 0 && <span style={{ fontSize: 11, background: 'var(--sev-high-bg)', color: 'var(--sev-high-color)', border: '1px solid var(--sev-high-border)', borderRadius: 4, padding: '1px 7px', fontWeight: 700 }}>{highCount} HIGH</span>}
+            {findings.length === 0 && <CheckCircle size={16} color="var(--green-DEFAULT)" />}
           </div>
         )}
-        {error && !running && <AlertTriangle size={16} color="#ef4444" />}
-        {expanded ? <ChevronDown size={16} color="#4b5563" /> : <ChevronRight size={16} color="#4b5563" />}
+        {error && !running && <AlertTriangle size={16} color="var(--red-DEFAULT)" />}
+        {expanded ? <ChevronDown size={16} color="var(--label-color)" /> : <ChevronRight size={16} color="var(--label-color)" />}
       </div>
 
       {/* Body */}
       {expanded && (
-        <div style={{ borderTop: '1px solid #1e2530', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ borderTop: '1px solid var(--bg-border)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <PayloadForm task={task} payload={payload} onChange={setPayload} />
 
           <button onClick={launch} disabled={running} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             padding: '9px 20px', borderRadius: 8, border: 'none', cursor: running ? 'not-allowed' : 'pointer',
-            background: running ? '#1e2530' : task.color, color: running ? '#4b5563' : '#000',
+            background: running ? 'var(--bg-border)' : task.color, color: running ? 'var(--label-color)' : '#000',
             fontWeight: 700, fontSize: 13, transition: 'all 0.15s',
           }}>
             {running ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Running…</> : <><Play size={14} /> Run</>}
           </button>
 
           {error && (
-            <div style={{ background: '#1a0a0a', border: '1px solid #7f1d1d', borderRadius: 8, padding: '10px 14px', color: '#ef4444', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}>
+            <div style={{ background: 'var(--sev-critical-bg)', border: '1px solid var(--sev-critical-border)', borderRadius: 8, padding: '10px 14px', color: 'var(--sev-critical-color)', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}>
               {error}
             </div>
           )}
@@ -337,11 +337,11 @@ function TaskPanel({ task, deviceId }) {
 
               {findingsBySev.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Findings</div>
+                  <div style={{ fontSize: 11, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Findings</div>
                   {findingsBySev.map((f, i) => <FindingCard key={i} f={f} />)}
                 </div>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#22c55e', fontSize: 13 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--green-DEFAULT)', fontSize: 13 }}>
                   <CheckCircle size={16} /> No findings — all checks passed
                 </div>
               )}
@@ -359,11 +359,11 @@ function TaskPanel({ task, deviceId }) {
 function Stat({ label, value, highlight }) {
   return (
     <div style={{
-      background: '#111827', border: '1px solid #1e2530', borderRadius: 6,
+      background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 6,
       padding: '6px 12px', display: 'flex', gap: 8, alignItems: 'baseline',
     }}>
-      <span style={{ fontSize: 18, fontWeight: 700, color: highlight ? '#f97316' : '#e5e7eb', fontFamily: 'JetBrains Mono, monospace' }}>{value}</span>
-      <span style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+      <span style={{ fontSize: 18, fontWeight: 700, color: highlight ? 'var(--sev-high-color)' : 'var(--input-text)', fontFamily: 'JetBrains Mono, monospace' }}>{value}</span>
+      <span style={{ fontSize: 11, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
     </div>
   )
 }
@@ -373,12 +373,12 @@ function RawResult({ result }) {
   return (
     <div>
       <button onClick={() => setShow(s => !s)} style={{
-        fontSize: 11, color: '#4b5563', background: 'none', border: 'none',
+        fontSize: 11, color: 'var(--label-color)', background: 'none', border: 'none',
         cursor: 'pointer', padding: 0, textDecoration: 'underline', fontFamily: 'JetBrains Mono, monospace',
       }}>{show ? 'hide raw' : 'show raw json'}</button>
       {show && (
         <pre style={{
-          fontSize: 11, color: '#6b7280', background: '#0a0c0f', border: '1px solid #1e2530',
+          fontSize: 11, color: 'var(--label-color)', background: 'var(--bg-base)', border: '1px solid var(--bg-border)',
           borderRadius: 6, padding: 12, overflow: 'auto', maxHeight: 300, marginTop: 8,
           fontFamily: 'JetBrains Mono, monospace',
         }}>{JSON.stringify(result, null, 2)}</pre>
@@ -419,11 +419,11 @@ export default function SecurityHubPage() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
             <ShieldCheck size={22} color="#06b6d4" />
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f3f4f6', fontFamily: 'Syne, sans-serif', margin: 0 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--input-text)', fontFamily: 'Syne, sans-serif', margin: 0 }}>
               Security Hub
             </h1>
           </div>
-          <p style={{ fontSize: 13, color: '#4b5563', margin: 0 }}>
+          <p style={{ fontSize: 13, color: 'var(--label-color)', margin: 0 }}>
             Run security checks from a connected agent — certs, DNS, default credentials, cleartext services, and SMB
           </p>
         </div>
@@ -431,18 +431,18 @@ export default function SecurityHubPage() {
 
       {/* Device selector */}
       <div style={{
-        background: '#0d1117', border: '1px solid #1e2530', borderRadius: 10,
+        background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 10,
         padding: '14px 18px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
       }}>
-        <Server size={16} color="#06b6d4" />
-        <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500, whiteSpace: 'nowrap' }}>Run from agent:</span>
+        <Server size={16} color="var(--cyan-DEFAULT)" />
+        <span style={{ fontSize: 13, color: 'var(--label-color)', fontWeight: 500, whiteSpace: 'nowrap' }}>Run from agent:</span>
         {customers.length > 1 && (
           <select
             value={filterCustomer}
             onChange={e => { setFilterCustomer(e.target.value); setDeviceId('') }}
             style={{
-              background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-              color: filterCustomer ? '#e5e7eb' : '#4b5563', padding: '7px 10px', fontSize: 13,
+              background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
+              color: filterCustomer ? 'var(--input-text)' : 'var(--label-color)', padding: '7px 10px', fontSize: 13,
               fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer', minWidth: 160,
             }}
           >
@@ -454,8 +454,8 @@ export default function SecurityHubPage() {
           value={deviceId}
           onChange={e => setDeviceId(e.target.value)}
           style={{
-            flex: 1, background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-            color: deviceId ? '#e5e7eb' : '#4b5563', padding: '7px 10px', fontSize: 13,
+            flex: 1, background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
+            color: deviceId ? 'var(--input-text)' : 'var(--label-color)', padding: '7px 10px', fontSize: 13,
             fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer',
           }}
         >
@@ -467,7 +467,7 @@ export default function SecurityHubPage() {
         {device && (
           <span style={{
             fontSize: 11, padding: '3px 8px', borderRadius: 20, fontFamily: 'JetBrains Mono, monospace',
-            background: '#0e2a1a', border: '1px solid #166534', color: '#4ade80',
+            background: 'var(--green-dim)', border: '1px solid var(--green-muted)', color: 'var(--green-DEFAULT)',
           }}>ONLINE</span>
         )}
       </div>

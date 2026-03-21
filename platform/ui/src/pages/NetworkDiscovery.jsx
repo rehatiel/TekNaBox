@@ -333,7 +333,7 @@ function NetworkDiagram({ discovered, newMacs, showOffline, onNodeClick }) {
             return (
               <line key={`line-${d.mac}`}
                 x1={cx} y1={cy} x2={x} y2={y}
-                stroke={d.offline ? '#1e2530' : isNew ? '#22c55e' : '#1e3a5f'}
+                stroke={d.offline ? 'var(--bg-border)' : isNew ? '#22c55e' : '#1e3a5f'}
                 strokeWidth={isNew ? 1.5 : 1}
                 strokeOpacity={0.7}
                 strokeDasharray={d.offline ? '4 4' : undefined}
@@ -351,8 +351,8 @@ function NetworkDiagram({ discovered, newMacs, showOffline, onNodeClick }) {
           {visible.map((d, i) => {
             const { x, y } = positions[i]
             const isNew      = newMacs.has(d.mac)
-            const fillColor  = d.offline ? '#111827' : isNew ? '#0f2a1a' : '#0f1e2e'
-            const strokeColor = d.offline ? '#374151' : isNew ? '#22c55e' : '#1d4ed8'
+            const fillColor  = d.offline ? 'var(--bg-elevated)' : isNew ? 'var(--green-dim)' : 'var(--cyan-dim)'
+            const strokeColor = d.offline ? 'var(--label-color)' : isNew ? '#22c55e' : '#1d4ed8'
             const ipShort    = d.ip ? d.ip.split('.').slice(-2).join('.') : '?'
             const vendorShort = (d.vendor || '').split(' ')[0].slice(0, 8)
 
@@ -364,10 +364,10 @@ function NetworkDiagram({ discovered, newMacs, showOffline, onNodeClick }) {
                 {isNew && <circle cx={x} cy={y} r={24} fill="none" stroke="#22c55e" strokeWidth={1} strokeOpacity={0.3} />}
                 <circle cx={x} cy={y} r={19} fill={fillColor} stroke={strokeColor} strokeWidth={isNew ? 2 : 1.5} />
                 <text x={x} y={y - 2} textAnchor="middle" dominantBaseline="middle"
-                  fontSize={9} fill={d.offline ? '#4b5563' : '#e5e7eb'} fontFamily="monospace">
+                  fontSize={9} fill={d.offline ? 'var(--label-color)' : 'var(--input-text)'} fontFamily="monospace">
                   {ipShort}
                 </text>
-                <text x={x} y={y + 30} textAnchor="middle" fontSize={7} fill="#4b5563" fontFamily="monospace">
+                <text x={x} y={y + 30} textAnchor="middle" fontSize={7} fill="var(--label-color)" fontFamily="monospace">
                   {vendorShort}
                 </text>
                 {isNew && (
@@ -384,15 +384,15 @@ function NetworkDiagram({ discovered, newMacs, showOffline, onNodeClick }) {
         {/* Legend (outside transform — always visible) */}
         <g transform={`translate(12, ${H - 44})`}>
           <circle cx={6} cy={6}  r={5} fill="#0f1e2e" stroke="#1d4ed8" strokeWidth={1.5} />
-          <text x={15} y={10} fontSize={9} fill="#4b5563" fontFamily="monospace">Known</text>
+          <text x={15} y={10} fontSize={9} fill="var(--label-color)" fontFamily="monospace">Known</text>
           <circle cx={6} cy={22} r={5} fill="#0f2a1a" stroke="#22c55e" strokeWidth={1.5} />
-          <text x={15} y={26} fontSize={9} fill="#4b5563" fontFamily="monospace">New</text>
-          <circle cx={6} cy={38} r={5} fill="#111827" stroke="#374151" strokeWidth={1.5} />
-          <text x={15} y={42} fontSize={9} fill="#4b5563" fontFamily="monospace">Offline</text>
+          <text x={15} y={26} fontSize={9} fill="var(--label-color)" fontFamily="monospace">New</text>
+          <circle cx={6} cy={38} r={5} fill="var(--bg-elevated)" stroke="var(--label-color)" strokeWidth={1.5} />
+          <text x={15} y={42} fontSize={9} fill="var(--label-color)" fontFamily="monospace">Offline</text>
         </g>
 
         {visible.length === 0 && (
-          <text x={cx} y={cy + 50} textAnchor="middle" fontSize={13} fill="#374151" fontFamily="monospace">
+          <text x={cx} y={cy + 50} textAnchor="middle" fontSize={13} fill="var(--label-color)" fontFamily="monospace">
             No devices discovered yet
           </text>
         )}
@@ -415,8 +415,8 @@ function NetworkDiagram({ discovered, newMacs, showOffline, onNodeClick }) {
 }
 
 const zoomBtn = {
-  background: '#0d1117', border: '1px solid #1e2530', borderRadius: 5,
-  color: '#6b7280', padding: '3px 7px', cursor: 'pointer', fontSize: 12,
+  background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 5,
+  color: 'var(--btn-ghost-color)', padding: '3px 7px', cursor: 'pointer', fontSize: 12,
   display: 'flex', alignItems: 'center', lineHeight: 1,
 }
 
@@ -436,30 +436,30 @@ function DeviceDetail({ device, onClose, isNew, onForget, onMarkKnown }) {
   return (
     <div style={{
       position: 'absolute', top: 8, right: 8, width: 240,
-      background: '#0d1117', border: '1px solid #1e2530', borderRadius: 10,
+      background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 10,
       boxShadow: '0 8px 32px #00000080', zIndex: 10, overflow: 'hidden',
     }}>
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '10px 14px', borderBottom: '1px solid #1e2530',
-        background: isNew ? '#0a1f0f' : '#111827',
+        padding: '10px 14px', borderBottom: '1px solid var(--bg-border)',
+        background: isNew ? 'var(--green-dim)' : 'var(--bg-elevated)',
       }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: isNew ? '#4ade80' : '#e5e7eb', fontFamily: 'JetBrains Mono, monospace' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: isNew ? 'var(--green-DEFAULT)' : 'var(--input-text)', fontFamily: 'JetBrains Mono, monospace' }}>
           {device.ip || device.mac}
         </span>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4b5563', padding: 2, display: 'flex' }}>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--label-color)', padding: 2, display: 'flex' }}>
           <X size={13} />
         </button>
       </div>
       <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {rows.map(([k, v]) => (
           <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontSize: 11, color: '#4b5563', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'nowrap' }}>{k}</span>
-            <span style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'JetBrains Mono, monospace', textAlign: 'right', wordBreak: 'break-all' }}>{v}</span>
+            <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'nowrap' }}>{k}</span>
+            <span style={{ fontSize: 11, color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace', textAlign: 'right', wordBreak: 'break-all' }}>{v}</span>
           </div>
         ))}
       </div>
-      <div style={{ padding: '8px 14px', borderTop: '1px solid #1e2530', display: 'flex', gap: 8 }}>
+      <div style={{ padding: '8px 14px', borderTop: '1px solid var(--bg-border)', display: 'flex', gap: 8 }}>
         {isNew && (
           <button onClick={() => { onMarkKnown(device.mac); onClose() }} style={{
             flex: 1, padding: '5px 0', borderRadius: 5, border: '1px solid #166534',
@@ -596,18 +596,18 @@ function ReportModal({ discovered, lastScan, onClose }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
     }}>
       <div style={{
-        background: '#0d1117', border: '1px solid #1e2530', borderRadius: 12,
+        background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 12,
         width: '100%', maxWidth: 860, maxHeight: '88vh',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>
         {/* Header */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '14px 20px', borderBottom: '1px solid #1e2530',
+          padding: '14px 20px', borderBottom: '1px solid var(--bg-border)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <FileText size={16} color="#06b6d4" />
-            <span style={{ fontWeight: 700, fontSize: 15, color: '#f3f4f6' }}>Network Scan Report</span>
+            <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--input-text)' }}>Network Scan Report</span>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={download} style={{
@@ -617,18 +617,18 @@ function ReportModal({ discovered, lastScan, onClose }) {
             }}>
               <Download size={12} /> Download .txt
             </button>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4b5563' }}>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--label-color)' }}>
               <X size={16} />
             </button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #1e2530' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--bg-border)' }}>
           {[['executive', 'Executive Summary'], ['technical', 'Technical Report']].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{
               padding: '9px 20px', fontSize: 12, fontWeight: tab === key ? 700 : 400,
-              color: tab === key ? '#06b6d4' : '#4b5563',
+              color: tab === key ? '#06b6d4' : 'var(--label-color)',
               background: 'none', border: 'none', cursor: 'pointer',
               borderBottom: tab === key ? '2px solid #06b6d4' : '2px solid transparent',
               marginBottom: -1,
@@ -642,7 +642,7 @@ function ReportModal({ discovered, lastScan, onClose }) {
         <pre style={{
           flex: 1, overflowY: 'auto', margin: 0,
           padding: '16px 20px', fontSize: 11.5, lineHeight: 1.6,
-          color: '#9ca3af', fontFamily: 'JetBrains Mono, Consolas, monospace',
+          color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, Consolas, monospace',
           whiteSpace: 'pre', background: '#070a0e',
         }}>
           {content}
@@ -743,7 +743,7 @@ export default function NetworkDiscoveryPage() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
         <Network size={22} color="#06b6d4" />
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f3f4f6', fontFamily: 'Syne, sans-serif', margin: 0 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--input-text)', fontFamily: 'Syne, sans-serif', margin: 0 }}>
           Network Discovery
         </h1>
         {newMacs.size > 0 && (
@@ -764,13 +764,13 @@ export default function NetworkDiscoveryPage() {
           </span>
         )}
       </div>
-      <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 28 }}>
+      <p style={{ fontSize: 13, color: 'var(--label-color)', marginBottom: 28 }}>
         Continuously scan your network for devices. Monitoring continues in the background while you navigate elsewhere.
       </p>
 
       {/* Controls bar */}
       <div style={{
-        background: '#0d1117', border: '1px solid #1e2530', borderRadius: 10,
+        background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 10,
         padding: '14px 18px', marginBottom: 20,
         display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap',
       }}>
@@ -871,10 +871,10 @@ export default function NetworkDiscoveryPage() {
             </span>
           )}
           {lastScan && !scanning && (
-            <span style={{ color: '#4b5563' }}>Last: {new Date(lastScan).toLocaleTimeString()}</span>
+            <span style={{ color: 'var(--label-color)' }}>Last: {new Date(lastScan).toLocaleTimeString()}</span>
           )}
           {nextScanIn !== null && !scanning && (
-            <span style={{ color: '#374151' }}>Next in {nextScanIn}s</span>
+            <span style={{ color: 'var(--label-color)' }}>Next in {nextScanIn}s</span>
           )}
           {error && (
             <span style={{ color: '#ef4444', maxWidth: 200, wordBreak: 'break-word' }}>
@@ -890,12 +890,12 @@ export default function NetworkDiscoveryPage() {
           {[
             { label: 'Total discovered', value: discovered.length, color: '#06b6d4' },
             { label: 'Online',           value: online.length,     color: '#22c55e' },
-            { label: 'Offline',          value: offline.length,    color: '#6b7280' },
+            { label: 'Offline',          value: offline.length,    color: 'var(--btn-ghost-color)' },
             { label: 'New devices',      value: newMacs.size,      color: '#f59e0b' },
           ].map(s => (
-            <div key={s.label} style={{ background: '#0d1117', border: '1px solid #1e2530', borderRadius: 8, padding: '12px 16px' }}>
+            <div key={s.label} style={{ background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 8, padding: '12px 16px' }}>
               <div style={{ fontSize: 24, fontWeight: 700, color: s.color, fontFamily: 'JetBrains Mono, monospace' }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--label-color)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -905,19 +905,19 @@ export default function NetworkDiscoveryPage() {
       {discovered.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Network diagram — full width */}
-          <div style={{ background: '#0a0c10', border: '1px solid #1e2530', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ background: '#0a0c10', border: '1px solid var(--bg-border)', borderRadius: 10, overflow: 'hidden' }}>
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '10px 14px', borderBottom: '1px solid #1e2530',
+              padding: '10px 14px', borderBottom: '1px solid var(--bg-border)',
             }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--btn-ghost-color)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 Network Map
               </span>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <span style={{ fontSize: 11, color: '#374151' }}>Scroll to zoom · Drag to pan · Click node for details</span>
+                <span style={{ fontSize: 11, color: 'var(--label-color)' }}>Scroll to zoom · Drag to pan · Click node for details</span>
                 <button
                   onClick={() => setShowOffline(v => !v)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#4b5563' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--label-color)' }}
                 >
                   {showOffline ? <EyeOff size={12} /> : <Eye size={12} />}
                   {showOffline ? 'Hide offline' : 'Show offline'}
@@ -950,12 +950,12 @@ export default function NetworkDiscoveryPage() {
           </div>
 
           {/* Device table — full width below diagram */}
-          <div style={{ background: '#0d1117', border: '1px solid #1e2530', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 10, overflow: 'hidden' }}>
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '10px 14px', borderBottom: '1px solid #1e2530',
+              padding: '10px 14px', borderBottom: '1px solid var(--bg-border)',
             }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--btn-ghost-color)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 Discovered Devices
               </span>
               {newMacs.size > 0 && (
@@ -970,9 +970,9 @@ export default function NetworkDiscoveryPage() {
             <div style={{ overflowY: 'auto', maxHeight: 320 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
                 <thead>
-                  <tr style={{ position: 'sticky', top: 0, background: '#0d1117' }}>
+                  <tr style={{ position: 'sticky', top: 0, background: 'var(--bg-surface)' }}>
                     {['', 'IP', 'MAC', 'Vendor', 'Last seen', ''].map((h, i) => (
-                      <th key={i} style={{ textAlign: 'left', padding: '6px 10px', color: '#374151', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', borderBottom: '1px solid #1e2530', fontWeight: 600 }}>{h}</th>
+                      <th key={i} style={{ textAlign: 'left', padding: '6px 10px', color: 'var(--label-color)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', borderBottom: '1px solid var(--bg-border)', fontWeight: 600 }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -985,22 +985,22 @@ export default function NetworkDiscoveryPage() {
                         <tr
                           key={d.mac}
                           onClick={() => setSelectedDevice(d)}
-                          style={{ borderBottom: '1px solid #0a0c0f', background: isNew ? '#0a1f0f' : 'transparent', cursor: 'pointer' }}
+                          style={{ borderBottom: '1px solid #0a0c0f', background: isNew ? 'var(--green-dim)' : 'transparent', cursor: 'pointer' }}
                         >
                           <td style={{ padding: '6px 10px' }}>
-                            <span style={{ fontSize: 16, color: d.offline ? '#374151' : isNew ? '#22c55e' : '#1d4ed8', lineHeight: 1 }}>●</span>
+                            <span style={{ fontSize: 16, color: d.offline ? 'var(--label-color)' : isNew ? '#22c55e' : '#1d4ed8', lineHeight: 1 }}>●</span>
                           </td>
-                          <td style={{ padding: '6px 10px', color: d.offline ? '#4b5563' : '#e5e7eb' }}>{d.ip}</td>
-                          <td style={{ padding: '6px 10px', color: '#6b7280', fontSize: 11 }}>{d.mac}</td>
-                          <td style={{ padding: '6px 10px', color: '#4b5563', fontSize: 11 }}>{d.vendor || '—'}</td>
-                          <td style={{ padding: '6px 10px', color: '#374151', fontSize: 11 }}>
+                          <td style={{ padding: '6px 10px', color: d.offline ? 'var(--label-color)' : 'var(--input-text)' }}>{d.ip}</td>
+                          <td style={{ padding: '6px 10px', color: 'var(--btn-ghost-color)', fontSize: 11 }}>{d.mac}</td>
+                          <td style={{ padding: '6px 10px', color: 'var(--label-color)', fontSize: 11 }}>{d.vendor || '—'}</td>
+                          <td style={{ padding: '6px 10px', color: 'var(--label-color)', fontSize: 11 }}>
                             {new Date(d.lastSeen).toLocaleTimeString()}
                           </td>
                           <td style={{ padding: '6px 8px' }}>
                             <button
                               onClick={(e) => { e.stopPropagation(); _svc.forgetDevice(d.mac) }}
                               title="Remove"
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#374151', padding: 2 }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--label-color)', padding: 2 }}
                             >
                               <Trash2 size={11} />
                             </button>
@@ -1015,13 +1015,13 @@ export default function NetworkDiscoveryPage() {
         </div>
       ) : (
         <div style={{
-          textAlign: 'center', padding: '70px 0', color: '#374151',
-          border: '1px dashed #1e2530', borderRadius: 10,
+          textAlign: 'center', padding: '70px 0', color: 'var(--label-color)',
+          border: '1px dashed var(--bg-border)', borderRadius: 10,
         }}>
-          <Network size={52} color="#1e2530" style={{ marginBottom: 16 }} />
+          <Network size={52} color="var(--bg-border)" style={{ marginBottom: 16 }} />
           <p style={{ fontSize: 14, marginBottom: 6 }}>No devices discovered yet</p>
-          <p style={{ fontSize: 12, color: '#1e2530' }}>
-            Select an agent and click <strong style={{ color: '#374151' }}>Start Monitoring</strong> to begin scanning.
+          <p style={{ fontSize: 12, color: 'var(--bg-border)' }}>
+            Select an agent and click <strong style={{ color: 'var(--label-color)' }}>Start Monitoring</strong> to begin scanning.
           </p>
         </div>
       )}
@@ -1040,17 +1040,17 @@ export default function NetworkDiscoveryPage() {
 // ── Shared style tokens ────────────────────────────────────────────────────────
 
 const labelStyle = {
-  fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em',
+  fontSize: 11, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.08em',
 }
 
 const selectStyle = {
-  background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-  color: '#e5e7eb', padding: '6px 10px', fontSize: 13,
+  background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
+  color: 'var(--input-text)', padding: '6px 10px', fontSize: 13,
   fontFamily: 'JetBrains Mono, monospace', outline: 'none',
 }
 
 const inputStyle = {
-  background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-  color: '#e5e7eb', padding: '6px 10px', fontSize: 13,
+  background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
+  color: 'var(--input-text)', padding: '6px 10px', fontSize: 13,
   fontFamily: 'JetBrains Mono, monospace', outline: 'none',
 }

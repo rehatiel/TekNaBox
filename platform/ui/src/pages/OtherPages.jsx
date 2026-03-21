@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { PageHeader, Spinner, Empty, Modal, Alert, Table, TR, TD, CodeBlock, StatusBadge } from '../components/ui'
 import { Building2, Plus, MapPin, PackageOpen, ScrollText, Users, Upload, RefreshCw } from 'lucide-react'
@@ -29,7 +30,11 @@ export function Customers() {
           : <Table headers={['Name', 'Slug', 'ID']}>
               {customers.map(c => (
                 <TR key={c.id}>
-                  <TD><span className="font-display font-500 text-slate-200">{c.name}</span></TD>
+                  <TD>
+                    <Link to={`/customers/${c.id}`} className="font-display font-500 text-slate-200 hover:text-cyan-DEFAULT transition-colors">
+                      {c.name}
+                    </Link>
+                  </TD>
                   <TD><span className="tag bg-bg-elevated border-bg-border text-slate-500">{c.slug}</span></TD>
                   <TD><span className="text-xs font-mono text-slate-600">{c.id.slice(0, 8)}</span></TD>
                 </TR>

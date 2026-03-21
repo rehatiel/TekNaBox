@@ -5,6 +5,134 @@ import { GitBranch, Shield, Bug, Sparkles, Wrench } from 'lucide-react'
 
 const RELEASES = [
   {
+    version: '3.5.2',
+    date: '2026-03-21',
+    summary: 'Reports coverage complete, uptime monitor fix, gitignore',
+    entries: [
+      {
+        type: 'fix',
+        text: 'Reports page now covers all 29 task types — added AD Recon (run_ad_recon) renderer showing domain info, DC table, privileged groups, kerberoastable accounts, unconstrained delegation, password policy, and trust relationships.',
+      },
+      {
+        type: 'fix',
+        text: 'Uptime monitor — added iputils-ping to the worker Docker image. The ping binary was missing from the minimal python:3.12-slim base image, silently preventing all WAN uptime checks from recording. Also fixed a subprocess leak when ping times out (process is now explicitly killed).',
+      },
+    ],
+  },
+  {
+    version: '3.5.1',
+    date: '2026-03-21',
+    summary: 'Email alerting system and ADReport light mode fix',
+    entries: [
+      {
+        type: 'feature',
+        text: 'Alert notification system — administrators can configure email (SMTP) and/or a webhook URL for four event types: Device Offline, Critical Findings, High Findings, and Task Failures (coming soon). Alert preferences are saved per MSP. New /alerts page accessible from the Admin section of the sidebar.',
+      },
+      {
+        type: 'feature',
+        text: 'Webhook alerts — POST JSON payloads to any URL when devices go offline or new findings are detected. Compatible with Slack incoming webhooks, n8n, Zapier, Make, or any custom HTTP endpoint. Includes a Slack-compatible "text" field for direct channel posting. Test button sends a verification payload immediately.',
+      },
+      {
+        type: 'feature',
+        text: 'SMTP email alerts — server-side SMTP credentials set via environment variables (supports STARTTLS/587 and SSL/465). Alerts page shows a warning banner when SMTP is not configured. Test Email button sends a confirmation email immediately.',
+      },
+      {
+        type: 'feature',
+        text: 'Findings alerter worker — a background loop runs every 5 minutes and sends a digest of new critical/high findings since the last alert. Uses last_finding_alert_at per MSP to avoid re-alerting on previously reported findings.',
+      },
+      {
+        type: 'fix',
+        text: 'ADReport page — fixed ~200 hardcoded dark Tailwind classes that made the page unreadable in light mode. All color tokens migrated to CSS custom property references (bg-bg-elevated, border-bg-border, text-slate-*, text-cyan-DEFAULT, bg-red-dim, etc.) consistent with the rest of the platform.',
+      },
+    ],
+  },
+  {
+    version: '3.5.0',
+    date: '2026-03-21',
+    summary: 'Per-customer dashboard — scoped device, findings, and task view for each customer',
+    entries: [
+      {
+        type: 'feature',
+        text: 'Per-customer dashboard (/customers/:id) — clicking a customer name in the Customers list now opens a dedicated dashboard scoped to that customer. Shows a stat strip (total/online/offline devices, sites, open findings, failed tasks in last 24h), a sites grid with per-site device counts, a device table with health bars and last-seen, the top unacknowledged findings sorted by severity, and the 10 most recent tasks.',
+      },
+      {
+        type: 'feature',
+        text: 'Breadcrumbs now resolve customer names on /customers/:id routes — API lookup with in-memory cache keeps the crumb readable without extra round-trips on back-navigation.',
+      },
+      {
+        type: 'change',
+        text: 'Customers list — customer name is now a clickable Link to the customer dashboard instead of plain text.',
+      },
+    ],
+  },
+  {
+    version: '3.4.0',
+    date: '2026-03-21',
+    summary: 'UI overhaul — theme system, navigation, widgets, table improvements, task actions',
+    entries: [
+      {
+        type: 'feature',
+        text: 'Dark/light theme toggle — sun/moon icon pinned to top-right. All color tokens moved to CSS custom properties in index.css (:root for dark, html.light for light). Tailwind config and all inline styles reference var() tokens — flipping the theme is a single class on <html>.',
+      },
+      {
+        type: 'feature',
+        text: 'Collapsible sidebar — collapses to 56px icon-only strip. Collapse state persisted to localStorage. Toggle button sits on the right edge of the sidebar. Nav items show tooltip labels when collapsed. Admin/Platform sections show a divider line instead of a text heading when collapsed.',
+      },
+      {
+        type: 'feature',
+        text: 'Global device search (Ctrl+K) — command-palette modal listing all devices, filterable by name, IP, hostname, or tag. Keyboard navigation (↑↓ to move, Enter to open, Esc to close). Shows device status badge and customer name. Also accessible via the search icon in the sidebar header.',
+      },
+      {
+        type: 'feature',
+        text: 'Breadcrumb navigation — route-aware breadcrumb trail shown on sub-pages (device detail, AD report). Resolves device names via API with in-memory cache to avoid re-fetching on navigation.',
+      },
+      {
+        type: 'feature',
+        text: 'Notification bell — aggregates alerts from live data: offline devices, unacknowledged critical/high findings, and failed/timed-out tasks in the last 24h. Badge shows unread count. Per-item dismiss with X button; "Clear all" resets to zero. Dismissed state persisted to localStorage. Refreshes every 60 seconds.',
+      },
+      {
+        type: 'feature',
+        text: 'Keyboard shortcuts — G chord navigation: G then D/F/T/M/N/S/W/A/H routes to Devices, Findings, Tasks, Monitoring, Network, Security, Wireless, Audit, Dashboard. ? opens a shortcut reference panel. A hinted strip appears at the bottom of the screen while in G-mode. Shortcuts are suppressed when focus is inside an input.',
+      },
+      {
+        type: 'feature',
+        text: 'Fleet health strip on Dashboard — three cards between the stat row and the main tables: Avg RAM (mini progress bar), Avg Disk (mini progress bar), and Health Warnings (count of devices exceeding any threshold). Only shown when sysinfo data is available.',
+      },
+      {
+        type: 'feature',
+        text: 'Mini health progress bars — inline 1px-tall bars for RAM and disk usage on the Dashboard device table and the Devices list. Color-coded: green (normal), amber (warn), red (critical). CPU temperature shown with a thermometer icon on the Devices page.',
+      },
+      {
+        type: 'feature',
+        text: 'Stale sysinfo warning on Devices page — an amber ⚠ stale badge appears in the Health column when last_sysinfo_at is older than 7 days.',
+      },
+      {
+        type: 'feature',
+        text: 'Offline reason display on Devices page — a small mono line below the status dot distinguishes "Never connected" (enrolled but agent never checked in), "Heartbeat timeout" (was connected, stopped reporting), and "Revoked" (uses revoke_reason if set).',
+      },
+      {
+        type: 'feature',
+        text: 'Table sorting and text search on all major tables — Devices (name, status, customer, site, version, last seen), Tasks (device, customer, type, status, queued), Findings (severity, title, target, device, found). Text search filters Devices by name/IP/tag, Tasks by device name/type, Findings by title/IP/CVE/device.',
+      },
+      {
+        type: 'feature',
+        text: 'Task cancel button — StopCircle icon shown on queued and dispatched tasks. Sends PATCH /v1/tasks/{task_id}/cancel and updates the row status immediately without a full reload.',
+      },
+      {
+        type: 'feature',
+        text: 'Task retry button — RotateCcw icon shown on failed and timed-out tasks. Re-issues the original task (same type, payload, timeout) to the same device and reloads the task list.',
+      },
+      {
+        type: 'change',
+        text: 'New backend endpoint: PATCH /v1/tasks/{task_id}/cancel — validates MSP ownership, rejects if status is not queued or dispatched (409), sets status to cancelled and stamps completed_at.',
+      },
+      {
+        type: 'change',
+        text: 'Findings page — replaced all hardcoded Tailwind gray classes (bg-gray-900, border-gray-700, text-white, etc.) in ScanModal and FindingDrawer with CSS variable-based tokens for correct light-mode rendering.',
+      },
+    ],
+  },
+  {
     version: '3.3.0',
     date: '2026-03-14',
     summary: 'Network Device History, scan state persistence, hide background scans in Reports, interface auto-detection',

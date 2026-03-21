@@ -5,7 +5,7 @@ import {
   PageHeader, StatusBadge, Spinner, Empty, Modal,
   Alert, Table, TR, TD, CodeBlock
 } from '../components/ui'
-import { Monitor, Plus, Terminal, XCircle, RefreshCw, ChevronRight } from 'lucide-react'
+import { Monitor, Plus, Terminal, XCircle, RefreshCw, ChevronRight, Search, Thermometer, AlertTriangle } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
 const TASK_TYPES = [
@@ -42,34 +42,64 @@ const TASK_TYPES = [
 
 // ── Health mini-badge ─────────────────────────────────────────────────────────
 
+const STALE_DAYS = 7
+
+function offlineReason(device) {
+  if (device.status === 'revoked') return device.revoke_reason || 'Revoked'
+  if (device.status === 'offline') {
+    if (!device.enrolled_at) return 'Never connected'
+    return 'Heartbeat timeout'
+  }
+  return null
+}
+
+function isSysInfoStale(device) {
+  if (!device.last_sysinfo_at) return false
+  const age = (Date.now() - new Date(device.last_sysinfo_at).getTime()) / (1000 * 60 * 60 * 24)
+  return age > STALE_DAYS
+}
+
 function healthColor(pct, warnAt = 70, critAt = 90) {
-  if (pct == null) return '#374151'
+  if (pct == null) return 'var(--label-color)'
   if (pct >= critAt) return '#ef4444'
   if (pct >= warnAt) return '#f59e0b'
   return '#22c55e'
+}
+
+function MiniBar({ pct, warn = 70, crit = 85 }) {
+  const color = pct >= crit ? 'bg-red-DEFAULT' : pct >= warn ? 'bg-amber-DEFAULT' : 'bg-green-DEFAULT'
+  return (
+    <div className="h-1 rounded-full bg-bg-border overflow-hidden w-12">
+      <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, pct)}%` }} />
+    </div>
+  )
 }
 
 function HealthCell({ device }) {
   if (device.last_sysinfo_at == null) return <span className="text-xs font-mono text-slate-700">—</span>
   const { last_cpu_temp_c: temp, last_mem_pct: mem, last_disk_pct: disk } = device
   return (
-    <span className="flex items-center gap-2 font-mono text-xs">
+    <div className="flex flex-col gap-1 text-xs font-mono">
       {temp != null && (
-        <span style={{ color: healthColor(temp, 65, 80) }} title="CPU temp">
-          {temp.toFixed(0)}°C
+        <span style={{ color: healthColor(temp, 65, 80) }} title="CPU temp" className="flex items-center gap-1">
+          <Thermometer className="w-3 h-3 shrink-0" />{temp.toFixed(0)}°C
         </span>
       )}
       {mem != null && (
-        <span style={{ color: healthColor(mem) }} title="RAM usage">
-          RAM {mem.toFixed(0)}%
-        </span>
+        <div className="flex items-center gap-1.5" title={`RAM ${mem.toFixed(0)}%`}>
+          <span className="text-slate-700 w-7">RAM</span>
+          <MiniBar pct={mem} />
+          <span style={{ color: healthColor(mem) }}>{mem.toFixed(0)}%</span>
+        </div>
       )}
       {disk != null && (
-        <span style={{ color: healthColor(disk, 75, 90) }} title="Disk usage">
-          Disk {disk.toFixed(0)}%
-        </span>
+        <div className="flex items-center gap-1.5" title={`Disk ${disk.toFixed(0)}%`}>
+          <span className="text-slate-700 w-7">Disk</span>
+          <MiniBar pct={disk} warn={75} crit={90} />
+          <span style={{ color: healthColor(disk, 75, 90) }}>{disk.toFixed(0)}%</span>
+        </div>
       )}
-    </span>
+    </div>
   )
 }
 
@@ -83,6 +113,7 @@ export default function Devices() {
   const [error, setError] = useState('')
 
   // Filters
+  const [filterSearch, setFilterSearch] = useState('')
   const [filterCustomer, setFilterCustomer] = useState('')
   const [filterSite, setFilterSite] = useState('')
 
@@ -112,6 +143,15 @@ export default function Devices() {
 
   // Filter + sort
   const visible = [...devices]
+    .filter(d => {
+      if (!filterSearch) return true
+      const q = filterSearch.toLowerCase()
+      return (
+        d.name?.toLowerCase().includes(q) ||
+        d.last_ip?.toLowerCase().includes(q) ||
+        (d.tags || []).some(t => t.toLowerCase().includes(q))
+      )
+    })
     .filter(d => !filterCustomer || d.customer_id === filterCustomer)
     .filter(d => !filterSite     || d.site_id     === filterSite)
     .sort((a, b) => {
@@ -155,9 +195,19 @@ export default function Devices() {
 
       {error && <Alert type="error" message={error} onClose={() => setError('')} className="mb-4" />}
 
-      {/* Customer / site filter bar */}
-      {(customers.length > 1 || sites.length > 1) && (
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
+      {/* Filter bar */}
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-600 pointer-events-none" />
+          <input
+            className="input text-xs py-1.5 pl-8 w-52"
+            placeholder="Search name, IP, tag…"
+            value={filterSearch}
+            onChange={e => setFilterSearch(e.target.value)}
+          />
+        </div>
+        {(customers.length > 1 || sites.length > 1) && (
+          <>
           {customers.length > 1 && (
             <select
               value={filterCustomer}
@@ -178,16 +228,17 @@ export default function Devices() {
               {siteOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           )}
-          {(filterCustomer || filterSite) && (
-            <button
-              onClick={() => { setFilterCustomer(''); setFilterSite('') }}
-              className="btn-ghost text-xs py-1.5"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      )}
+            {(filterCustomer || filterSite) && (
+              <button
+                onClick={() => { setFilterCustomer(''); setFilterSite('') }}
+                className="btn-ghost text-xs py-1.5"
+              >
+                Clear
+              </button>
+            )}
+          </>
+        )}
+      </div>
 
       <div className="card">
         {loading ? (
@@ -221,10 +272,23 @@ export default function Devices() {
                     <span className="font-mono text-xs">{d.name}</span>
                   </Link>
                 </TD>
-                <TD><StatusBadge status={d.status} /></TD>
+                <TD>
+                  <StatusBadge status={d.status} />
+                  {offlineReason(d) && (
+                    <div className="text-[10px] text-slate-700 mt-0.5 font-mono">{offlineReason(d)}</div>
+                  )}
+                </TD>
                 <TD><span className="text-xs text-slate-500">{d.customer_name || '—'}</span></TD>
                 <TD><span className="text-xs text-slate-500">{siteName(d.site_id)}</span></TD>
-                <TD><HealthCell device={d} /></TD>
+                <TD>
+                  <HealthCell device={d} />
+                  {isSysInfoStale(d) && (
+                    <div className="flex items-center gap-1 mt-0.5" title={`Sysinfo older than ${STALE_DAYS} days`}>
+                      <AlertTriangle className="w-3 h-3 text-amber-DEFAULT" />
+                      <span className="text-[10px] text-amber-DEFAULT font-mono">stale</span>
+                    </div>
+                  )}
+                </TD>
                 <TD><span className="tag bg-bg-elevated border-bg-border text-slate-500">{d.current_version || '—'}</span></TD>
                 <TD>
                   <span className="text-xs font-mono text-slate-600">

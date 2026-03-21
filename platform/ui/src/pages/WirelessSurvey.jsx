@@ -53,7 +53,7 @@ function ChannelMap({ networks }) {
       const channelX = ch => ((ch - 1) / 12) * (W - 60) + 30
 
       // Grid lines
-      ctx.strokeStyle = '#1e2630'
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-border').trim() || '#1e2630'
       ctx.lineWidth = 1
       channels.forEach(ch => {
         const x = channelX(ch)
@@ -114,7 +114,7 @@ function ChannelMap({ networks }) {
         return idx < 0 ? W / 2 : (idx / (n - 1 || 1)) * (W - 60) + 30
       }
 
-      ctx.strokeStyle = '#1e2630'
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-border').trim() || '#1e2630'
       ctx.lineWidth = 1
       displayChs.forEach(ch => {
         const x = channelX(ch)
@@ -172,7 +172,7 @@ function ChannelMap({ networks }) {
     ctx.fillText('5 GHz', 4, halfH + 16)
 
     // Baselines
-    ctx.strokeStyle = '#1e2630'
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-border').trim() || '#1e2630'
     ctx.lineWidth = 1
     ctx.beginPath(); ctx.moveTo(0, halfH - 20); ctx.lineTo(W, halfH - 20); ctx.stroke()
     ctx.beginPath(); ctx.moveTo(0, H - 20); ctx.lineTo(W, H - 20); ctx.stroke()
@@ -187,7 +187,7 @@ function ChannelMap({ networks }) {
       width={900}
       height={320}
       className="w-full rounded"
-      style={{ background: '#0a0c0f' }}
+      style={{ background: 'var(--bg-base)' }}
     />
   )
 }
@@ -205,7 +205,7 @@ function SignalBars({ dbm }) {
           className="w-1 rounded-sm"
           style={{
             height: `${(i + 1) * 20}%`,
-            backgroundColor: q.pct >= threshold ? q.color : '#1e2630',
+            backgroundColor: q.pct >= threshold ? q.color : 'var(--bg-border)',
           }}
         />
       ))}

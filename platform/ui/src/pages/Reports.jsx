@@ -49,6 +49,7 @@ const REPORT_TYPES = [
   { value: 'run_email_breach',       label: 'Email Breach',         icon: Mail       },
   // Active Directory
   { value: 'run_ad_discover',        label: 'AD Discovery',         icon: Building2  },
+  { value: 'run_ad_recon',           label: 'AD Recon',             icon: Building2  },
 ]
 
 const REPORTABLE_TYPES = REPORT_TYPES.slice(1).map(t => t.value)
@@ -1332,6 +1333,143 @@ function AdDiscoverReport({ result }) {
   )
 }
 
+function AdReconReport({ result }) {
+  if (!result) return null
+  const {
+    domain = {}, users = [], computers = [], groups = [],
+    kerberoastable = [], asreproastable = [], delegation = {},
+    password_policy = {}, trusts = [], gpos = [],
+  } = result
+
+  const domainInfo   = domain.info || {}
+  const dcs          = domain.domain_controllers || []
+  const privGroups   = groups.filter(g => g.privileged)
+  const unconstrained = [
+    ...(delegation.unconstrained_computers || []),
+    ...(delegation.unconstrained_users     || []),
+  ]
+
+  const SEV = (count, warn, crit) => count >= crit ? 'text-red-DEFAULT' : count >= warn ? 'text-amber-DEFAULT' : 'text-green-DEFAULT'
+
+  return (
+    <div className="space-y-5">
+      {/* Top stats */}
+      <StatCards items={[
+        { label: 'Domain',          value: domainInfo.dns_root || domainInfo.name || '—', color: 'text-cyan-DEFAULT' },
+        { label: 'Users',           value: users.length },
+        { label: 'Computers',       value: computers.length },
+        { label: 'Domain Controllers', value: dcs.length },
+        { label: 'Kerberoastable',  value: kerberoastable.length, color: SEV(kerberoastable.length, 1, 5) },
+        { label: 'AS-REP Roastable',value: asreproastable.length, color: SEV(asreproastable.length, 1, 5) },
+        { label: 'Unconstrained Deleg.', value: unconstrained.length, color: SEV(unconstrained.length, 1, 3) },
+        { label: 'GPOs',            value: gpos.length },
+      ]} />
+
+      {/* Domain Controllers */}
+      {dcs.length > 0 && (
+        <div>
+          <p className="text-xs font-display font-600 text-slate-400 mb-2">Domain Controllers</p>
+          <Table headers={['Hostname', 'IP', 'OS', 'FSMO Roles', 'Site']}>
+            {dcs.map((dc, i) => (
+              <TR key={i}>
+                <TD><span className="text-xs font-mono text-cyan-DEFAULT">{dc.name || dc.hostname || '—'}</span></TD>
+                <TD><span className="text-xs font-mono text-slate-400">{dc.ip || '—'}</span></TD>
+                <TD><span className="text-xs text-slate-300">{dc.os || '—'}</span></TD>
+                <TD><span className="text-xs text-slate-500">{(dc.fsmo_roles || []).join(', ') || '—'}</span></TD>
+                <TD><span className="text-xs text-slate-500">{dc.site || '—'}</span></TD>
+              </TR>
+            ))}
+          </Table>
+        </div>
+      )}
+
+      {/* Privileged groups */}
+      {privGroups.length > 0 && (
+        <div>
+          <p className="text-xs font-display font-600 text-slate-400 mb-2">Privileged Groups</p>
+          <Table headers={['Group', 'Members', 'Nested Members']}>
+            {privGroups.map((g, i) => (
+              <TR key={i}>
+                <TD><span className="text-xs font-mono text-slate-200">{g.name}</span></TD>
+                <TD><span className={`text-xs font-mono font-600 ${SEV(g.member_count || 0, 3, 10)}`}>{g.member_count ?? (g.members || []).length}</span></TD>
+                <TD><span className="text-xs font-mono text-slate-500">{g.nested_member_count ?? '—'}</span></TD>
+              </TR>
+            ))}
+          </Table>
+        </div>
+      )}
+
+      {/* Kerberoastable accounts */}
+      {kerberoastable.length > 0 && (
+        <div>
+          <p className="text-xs font-display font-600 text-red-DEFAULT mb-2">Kerberoastable Accounts ({kerberoastable.length})</p>
+          <Table headers={['Username', 'SPN', 'Password Age (days)', 'Admin Count']}>
+            {kerberoastable.map((u, i) => (
+              <TR key={i}>
+                <TD><span className="text-xs font-mono text-slate-200">{u.username || u.sam_account_name}</span></TD>
+                <TD><span className="text-xs font-mono text-slate-500 truncate max-w-xs">{(u.spns || [])[0] || '—'}</span></TD>
+                <TD><span className={`text-xs font-mono ${SEV(u.password_age_days || 0, 90, 365)}`}>{u.password_age_days ?? '—'}</span></TD>
+                <TD><span className="text-xs font-mono">{u.admin_count ? <span className="text-red-DEFAULT">Yes</span> : <span className="text-slate-600">No</span>}</span></TD>
+              </TR>
+            ))}
+          </Table>
+        </div>
+      )}
+
+      {/* Unconstrained delegation */}
+      {unconstrained.length > 0 && (
+        <div>
+          <p className="text-xs font-display font-600 text-amber-DEFAULT mb-2">Unconstrained Delegation ({unconstrained.length})</p>
+          <div className="flex flex-wrap gap-2">
+            {unconstrained.map((name, i) => (
+              <span key={i} className="text-xs font-mono px-2 py-1 rounded bg-amber-dim border border-amber-muted text-amber-DEFAULT">{name}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Password policy */}
+      {password_policy && Object.keys(password_policy).length > 0 && (
+        <div>
+          <p className="text-xs font-display font-600 text-slate-400 mb-2">Password Policy</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              ['Min Length',   password_policy.min_length ?? password_policy.minimum_password_length],
+              ['Max Age (days)', password_policy.max_age_days ?? password_policy.maximum_password_age],
+              ['History',      password_policy.history_length ?? password_policy.password_history_length],
+              ['Lockout Threshold', password_policy.lockout_threshold],
+              ['Lockout Duration', password_policy.lockout_duration_mins != null ? `${password_policy.lockout_duration_mins}m` : null],
+              ['Complexity',   password_policy.complexity_enabled ? 'Enabled' : password_policy.complexity_enabled === false ? 'Disabled' : null],
+            ].filter(([, v]) => v != null).map(([label, val]) => (
+              <div key={label} className="card px-3 py-2 flex items-center gap-2">
+                <span className="text-xs text-slate-500">{label}</span>
+                <span className="text-xs font-mono font-600 text-slate-300 ml-auto">{val}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Trusts */}
+      {trusts.length > 0 && (
+        <div>
+          <p className="text-xs font-display font-600 text-slate-400 mb-2">Trust Relationships ({trusts.length})</p>
+          <Table headers={['Trusted Domain', 'Direction', 'Type', 'Transitive']}>
+            {trusts.map((t, i) => (
+              <TR key={i}>
+                <TD><span className="text-xs font-mono text-slate-200">{t.trusted_domain || t.name}</span></TD>
+                <TD><span className="text-xs font-mono text-slate-400">{t.direction || '—'}</span></TD>
+                <TD><span className="text-xs font-mono text-slate-500">{t.trust_type || '—'}</span></TD>
+                <TD><span className="text-xs">{t.transitive ? <span className="text-amber-DEFAULT">Yes</span> : <span className="text-slate-600">No</span>}</span></TD>
+              </TR>
+            ))}
+          </Table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Renderer dispatcher ───────────────────────────────────────────────────────
 
 function ReportRenderer({ task }) {
@@ -1372,6 +1510,7 @@ function ReportRenderer({ task }) {
     case 'run_email_breach':         return <EmailBreachReport        result={result} payload={payload} />
     // Active Directory
     case 'run_ad_discover':          return <AdDiscoverReport         result={result} payload={payload} />
+    case 'run_ad_recon':             return <AdReconReport            result={result} payload={payload} />
     default:
       return (
         <pre className="text-xs font-mono text-slate-400 bg-bg-base border border-bg-border rounded p-3 overflow-auto max-h-64">

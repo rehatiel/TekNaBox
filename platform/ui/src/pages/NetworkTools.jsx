@@ -183,21 +183,21 @@ function LldpResult({ result }) {
         { label: 'Listen time', value: `${result.duration_s}s` },
       ]} />
       {neighbors.length === 0 && (
-        <div style={{ fontSize: 13, color: '#4b5563', padding: '8px 0' }}>
+        <div style={{ fontSize: 13, color: 'var(--label-color)', padding: '8px 0' }}>
           No LLDP/CDP frames received. Ensure the upstream switch has LLDP enabled.
         </div>
       )}
       {neighbors.map((nb, i) => (
         <div key={i} style={{
-          background: '#111827', border: '1px solid #1e2530', borderRadius: 8,
+          background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 8,
           padding: '12px 16px', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4,
         }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <Layers size={14} color="#f97316" />
-            <span style={{ fontWeight: 600, color: '#e5e7eb', fontSize: 14 }}>
+            <span style={{ fontWeight: 600, color: 'var(--input-text)', fontSize: 14 }}>
               {nb.system_name || nb.device_id || 'Unknown neighbor'}
             </span>
-            <span style={{ fontSize: 11, color: '#4b5563', fontFamily: 'JetBrains Mono, monospace' }}>{nb.protocol}</span>
+            <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>{nb.protocol}</span>
           </div>
           {nb.port_id && <KV k="Port" v={nb.port_id} />}
           {nb.port_description && <KV k="Port desc" v={nb.port_description} />}
@@ -222,7 +222,7 @@ function NtpResult({ result }) {
       ]} />
       {result.local_sync && (
         <div style={{ marginTop: 10 }}>
-          <div style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Local Sync</div>
+          <div style={{ fontSize: 11, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Local Sync</div>
           <KV k="Synchronized" v={result.local_sync.synchronized ? 'Yes' : 'No'} />
           {result.local_sync.source && <KV k="Source" v={result.local_sync.source} />}
           {result.local_sync.offset_ms != null && <KV k="Offset" v={`${result.local_sync.offset_ms}ms`} />}
@@ -292,7 +292,7 @@ function VlanHopResult({ result }) {
       {/* Double-tag results — compact table when multiple VLANs */}
       {doubleTagFindings.length > 0 && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+          <div style={{ fontSize: 11, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
             Double-Tag Attack Results
           </div>
           {doubleTagFindings.length === 1 ? (
@@ -303,24 +303,24 @@ function VlanHopResult({ result }) {
                 <thead>
                   <tr>
                     {['Target VLAN', 'Result', 'ARP Replies', 'Notes'].map(c => (
-                      <th key={c} style={{ textAlign: 'left', padding: '6px 10px', color: '#4b5563', borderBottom: '1px solid #1e2530', fontWeight: 600, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em' }}>{c}</th>
+                      <th key={c} style={{ textAlign: 'left', padding: '6px 10px', color: 'var(--label-color)', borderBottom: '1px solid var(--bg-border)', fontWeight: 600, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em' }}>{c}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {doubleTagFindings.map((f, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #111827', background: f.vulnerable ? '#1a050520' : 'transparent' }}>
-                      <td style={{ padding: '6px 10px', color: '#e5e7eb' }}>{f.target_vlan}</td>
+                      <td style={{ padding: '6px 10px', color: 'var(--input-text)' }}>{f.target_vlan}</td>
                       <td style={{ padding: '6px 10px' }}>
                         {f.error
-                          ? <span style={{ color: '#6b7280' }}>Error</span>
+                          ? <span style={{ color: 'var(--btn-ghost-color)' }}>Error</span>
                           : f.vulnerable
                             ? <span style={{ color: '#ef4444', fontWeight: 700 }}>VULNERABLE</span>
                             : <span style={{ color: '#22c55e' }}>Clean</span>
                         }
                       </td>
-                      <td style={{ padding: '6px 10px', color: '#9ca3af' }}>{f.replies?.length ?? '—'}</td>
-                      <td style={{ padding: '6px 10px', color: '#4b5563', fontSize: 11 }}>
+                      <td style={{ padding: '6px 10px', color: 'var(--btn-ghost-color)' }}>{f.replies?.length ?? '—'}</td>
+                      <td style={{ padding: '6px 10px', color: 'var(--label-color)', fontSize: 11 }}>
                         {f.error || (f.replies?.length > 0 ? f.replies.map(r => r.src_ip).join(', ') : '—')}
                       </td>
                     </tr>
@@ -335,7 +335,7 @@ function VlanHopResult({ result }) {
       {/* DTP result */}
       {dtpFinding && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+          <div style={{ fontSize: 11, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
             DTP Trunk Negotiation
           </div>
           <FindingCard f={dtpFinding} />
@@ -347,13 +347,13 @@ function VlanHopResult({ result }) {
 
 function FindingCard({ f }) {
   const vuln        = f.vulnerable
-  const borderColor = f.error ? '#374151' : vuln ? '#ef444460' : '#22c55e40'
-  const bgColor     = f.error ? '#111827' : vuln ? '#1a0505'   : '#051a09'
+  const borderColor = f.error ? 'var(--label-color)' : vuln ? '#ef444460' : '#22c55e40'
+  const bgColor     = f.error ? 'var(--bg-elevated)' : vuln ? 'var(--sev-critical-bg)' : 'var(--green-dim)'
   return (
     <div style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 8, padding: '12px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: f.description ? 6 : 0 }}>
         {f.error
-          ? <AlertTriangle size={13} color="#6b7280" />
+          ? <AlertTriangle size={13} color="var(--btn-ghost-color)" />
           : vuln ? <AlertTriangle size={13} color="#ef4444" /> : <CheckCircle size={13} color="#22c55e" />
         }
         {!f.error && (
@@ -369,8 +369,8 @@ function FindingCard({ f }) {
         )}
       </div>
       {f.error
-        ? <div style={{ fontSize: 12, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>{f.error}</div>
-        : <div style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.6 }}>{f.description}</div>
+        ? <div style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.error}</div>
+        : <div style={{ fontSize: 12, color: 'var(--btn-ghost-color)', lineHeight: 1.6 }}>{f.description}</div>
       }
       {f.test === 'dtp_negotiation' && f.replies?.length > 0 && (
         <HostTable columns={['Switch MAC']} rows={f.replies.map(mac => [mac])} />
@@ -389,11 +389,11 @@ function SummaryRow({ items }) {
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
       {items.map((item, i) => (
         <div key={i} style={{
-          background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
+          background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
           padding: '5px 12px', display: 'flex', gap: 8, alignItems: 'baseline',
         }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: item.color || '#e5e7eb', fontFamily: 'JetBrains Mono, monospace' }}>{item.value}</span>
-          <span style={{ fontSize: 11, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.label}</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: item.color || 'var(--input-text)', fontFamily: 'JetBrains Mono, monospace' }}>{item.value}</span>
+          <span style={{ fontSize: 11, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.label}</span>
         </div>
       ))}
     </div>
@@ -407,7 +407,7 @@ function HostTable({ columns, rows }) {
         <thead>
           <tr>
             {columns.map(c => (
-              <th key={c} style={{ textAlign: 'left', padding: '6px 10px', color: '#4b5563', borderBottom: '1px solid #1e2530', fontWeight: 600, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em' }}>{c}</th>
+              <th key={c} style={{ textAlign: 'left', padding: '6px 10px', color: 'var(--label-color)', borderBottom: '1px solid var(--bg-border)', fontWeight: 600, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em' }}>{c}</th>
             ))}
           </tr>
         </thead>
@@ -415,7 +415,7 @@ function HostTable({ columns, rows }) {
           {rows.map((row, i) => (
             <tr key={i} style={{ borderBottom: '1px solid #111827' }}>
               {row.map((cell, j) => (
-                <td key={j} style={{ padding: '7px 10px', color: '#9ca3af' }}>{cell}</td>
+                <td key={j} style={{ padding: '7px 10px', color: 'var(--btn-ghost-color)' }}>{cell}</td>
               ))}
             </tr>
           ))}
@@ -428,8 +428,8 @@ function HostTable({ columns, rows }) {
 function KV({ k, v }) {
   return (
     <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-      <span style={{ color: '#4b5563', minWidth: 100, fontFamily: 'JetBrains Mono, monospace' }}>{k}</span>
-      <span style={{ color: '#9ca3af', fontFamily: 'JetBrains Mono, monospace', wordBreak: 'break-all' }}>{v}</span>
+      <span style={{ color: 'var(--label-color)', minWidth: 100, fontFamily: 'JetBrains Mono, monospace' }}>{k}</span>
+      <span style={{ color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace', wordBreak: 'break-all' }}>{v}</span>
     </div>
   )
 }
@@ -442,25 +442,25 @@ function PayloadForm({ task, payload, onChange, interfaces }) {
       {task.fields.map(f => {
         if (f.type === 'hostlist') return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
             <textarea
               rows={3}
               placeholder={f.placeholder}
               value={Array.isArray(payload[f.key]) ? payload[f.key].join('\n') : payload[f.key] || ''}
               onChange={e => onChange({ ...payload, [f.key]: e.target.value.split('\n').map(s => s.trim()).filter(Boolean) })}
-              style={{ background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6, color: '#e5e7eb', padding: '8px 10px', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', resize: 'vertical' }}
+              style={{ background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--input-text)', padding: '8px 10px', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', resize: 'vertical' }}
             />
           </label>
         )
 
         if (f.type === 'interface') return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
             {interfaces && interfaces.length > 0 ? (
               <select
                 value={payload[f.key] ?? ''}
                 onChange={e => onChange({ ...payload, [f.key]: e.target.value })}
-                style={{ background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6, color: '#e5e7eb', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer' }}
+                style={{ background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--input-text)', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer' }}
               >
                 {interfaces.map(({ name, ip }) => (
                 <option key={name} value={name}>{name}{ip ? ` (${ip})` : ''}</option>
@@ -472,7 +472,7 @@ function PayloadForm({ task, payload, onChange, interfaces }) {
                 placeholder={f.placeholder || 'eth0'}
                 value={payload[f.key] ?? ''}
                 onChange={e => onChange({ ...payload, [f.key]: e.target.value })}
-                style={{ background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6, color: '#e5e7eb', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}
+                style={{ background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--input-text)', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}
               />
             )}
           </label>
@@ -480,14 +480,14 @@ function PayloadForm({ task, payload, onChange, interfaces }) {
 
         return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
             <input
               type={f.type === 'number' ? 'number' : 'text'}
               min={f.min} max={f.max} step={f.min < 1 ? 0.1 : 1}
               placeholder={f.placeholder || ''}
               value={payload[f.key] ?? ''}
               onChange={e => onChange({ ...payload, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value })}
-              style={{ background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6, color: '#e5e7eb', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}
+              style={{ background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--input-text)', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}
             />
           </label>
         )
@@ -553,7 +553,7 @@ function TaskPanel({ task, deviceId, interfaces }) {
   useEffect(() => () => clearInterval(pollRef.current), [])
 
   return (
-    <div style={{ background: '#0d1117', border: '1px solid #1e2530', borderRadius: 12, overflow: 'hidden' }}>
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 12, overflow: 'hidden' }}>
       <div onClick={() => setExpanded(e => !e)} style={{
         display: 'flex', alignItems: 'center', gap: 14, padding: '15px 20px', cursor: 'pointer', userSelect: 'none',
       }}>
@@ -564,19 +564,19 @@ function TaskPanel({ task, deviceId, interfaces }) {
           <Icon size={15} color={task.color} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#f3f4f6' }}>{task.label}</div>
-          <div style={{ fontSize: 12, color: '#374151', marginTop: 2 }}>{task.description}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--input-text)' }}>{task.label}</div>
+          <div style={{ fontSize: 12, color: 'var(--label-color)', marginTop: 2 }}>{task.description}</div>
         </div>
         {running && <Loader2 size={15} color="#06b6d4" style={{ animation: 'spin 1s linear infinite' }} />}
         {result && !running && <CheckCircle size={15} color="#22c55e" />}
         {error && !running && <AlertTriangle size={15} color="#ef4444" />}
-        {expanded ? <ChevronDown size={15} color="#374151" /> : <ChevronRight size={15} color="#374151" />}
+        {expanded ? <ChevronDown size={15} color="var(--label-color)" /> : <ChevronRight size={15} color="var(--label-color)" />}
       </div>
 
       {expanded && (
-        <div style={{ borderTop: '1px solid #1e2530', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ borderTop: '1px solid var(--bg-border)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {task.note && (
-            <div style={{ fontSize: 12, color: '#6b7280', background: '#0a1020', border: '1px solid #1e2530', borderRadius: 6, padding: '8px 12px' }}>
+            <div style={{ fontSize: 12, color: 'var(--btn-ghost-color)', background: '#0a1020', border: '1px solid var(--bg-border)', borderRadius: 6, padding: '8px 12px' }}>
               ℹ️ {task.note}
             </div>
           )}
@@ -584,7 +584,7 @@ function TaskPanel({ task, deviceId, interfaces }) {
           <button onClick={launch} disabled={running} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             padding: '9px 20px', borderRadius: 8, border: 'none', cursor: running ? 'not-allowed' : 'pointer',
-            background: running ? '#1e2530' : task.color, color: running ? '#4b5563' : '#000',
+            background: running ? 'var(--bg-border)' : task.color, color: running ? 'var(--label-color)' : '#000',
             fontWeight: 700, fontSize: 13, transition: 'all 0.15s',
           }}>
             {running ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Running…</> : <><Play size={14} /> Run</>}
@@ -650,11 +650,11 @@ export default function NetworkToolsPage() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
             <Network size={22} color="#06b6d4" />
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#f3f4f6', fontFamily: 'Syne, sans-serif', margin: 0 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--input-text)', fontFamily: 'Syne, sans-serif', margin: 0 }}>
               Network Tools
             </h1>
           </div>
-          <p style={{ fontSize: 13, color: '#4b5563', margin: 0 }}>
+          <p style={{ fontSize: 13, color: 'var(--label-color)', margin: 0 }}>
             ARP scan, ping sweep, NetBIOS enumeration, LLDP topology, NTP sync, Wake-on-LAN, and VLAN hopping detection
           </p>
         </div>
@@ -662,17 +662,17 @@ export default function NetworkToolsPage() {
 
       {/* Device selector */}
       <div style={{
-        background: '#0d1117', border: '1px solid #1e2530', borderRadius: 10,
+        background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 10,
         padding: '14px 18px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 14,
       }}>
         <Server size={16} color="#06b6d4" />
-        <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500, whiteSpace: 'nowrap' }}>Run from agent:</span>
+        <span style={{ fontSize: 13, color: 'var(--btn-ghost-color)', fontWeight: 500, whiteSpace: 'nowrap' }}>Run from agent:</span>
         <select
           value={deviceId}
           onChange={e => setDeviceId(e.target.value)}
           style={{
-            flex: 1, background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-            color: deviceId ? '#e5e7eb' : '#4b5563', padding: '7px 10px', fontSize: 13,
+            flex: 1, background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
+            color: deviceId ? 'var(--input-text)' : 'var(--label-color)', padding: '7px 10px', fontSize: 13,
             fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer',
           }}
         >

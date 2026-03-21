@@ -134,7 +134,7 @@ function ScanCard({ scanDef, device, onStart, running }) {
 
   return (
     <div style={{
-      background: '#0d1117', border: `1px solid ${open ? scanDef.color + '55' : '#1e2530'}`,
+      background: 'var(--bg-surface)', border: `1px solid ${open ? scanDef.color + '55' : 'var(--bg-border)'}`,
       borderRadius: 10, overflow: 'hidden',
       transition: 'border-color 0.15s',
     }}>
@@ -147,25 +147,25 @@ function ScanCard({ scanDef, device, onStart, running }) {
         }}
       >
         <Icon size={16} color={scanDef.color} style={{ flexShrink: 0 }} />
-        <span style={{ fontSize: 13, color: '#e5e7eb', fontWeight: 600, flex: 1 }}>{scanDef.label}</span>
+        <span style={{ fontSize: 13, color: 'var(--input-text)', fontWeight: 600, flex: 1 }}>{scanDef.label}</span>
         {running ? (
           <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: scanDef.color }}>
             <RefreshCw size={10} style={{ animation: 'spin 1s linear infinite' }} />
             Running…
           </span>
         ) : (
-          open ? <ChevronDown size={13} color="#4b5563" /> : <ChevronRight size={13} color="#4b5563" />
+          open ? <ChevronDown size={13} color="var(--label-color)" /> : <ChevronRight size={13} color="var(--label-color)" />
         )}
       </button>
 
       {open && !running && (
         <div style={{ padding: '0 14px 14px', borderTop: '1px solid #1a2030' }}>
-          <p style={{ fontSize: 11, color: '#4b5563', margin: '10px 0 12px', fontFamily: 'JetBrains Mono, monospace' }}>
+          <p style={{ fontSize: 11, color: 'var(--label-color)', margin: '10px 0 12px', fontFamily: 'JetBrains Mono, monospace' }}>
             {scanDef.desc}
           </p>
           {scanDef.fields.map(f => (
             <div key={f.key} style={{ marginBottom: 10 }}>
-              <label style={{ display: 'block', fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <label style={{ display: 'block', fontSize: 10, color: 'var(--btn-ghost-color)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 {f.label}
               </label>
               {f.type === 'select' ? (
@@ -173,8 +173,8 @@ function ScanCard({ scanDef, device, onStart, running }) {
                   value={fields[f.key]}
                   onChange={e => setFields(prev => ({ ...prev, [f.key]: e.target.value }))}
                   style={{
-                    width: '100%', background: '#0a0c0f', border: '1px solid #1e2530',
-                    borderRadius: 6, color: '#e5e7eb', padding: '6px 8px', fontSize: 12,
+                    width: '100%', background: 'var(--bg-base)', border: '1px solid var(--bg-border)',
+                    borderRadius: 6, color: 'var(--input-text)', padding: '6px 8px', fontSize: 12,
                     fontFamily: 'JetBrains Mono, monospace', outline: 'none',
                   }}
                 >
@@ -188,15 +188,15 @@ function ScanCard({ scanDef, device, onStart, running }) {
                   placeholder={f.placeholder}
                   style={{
                     width: '100%', boxSizing: 'border-box',
-                    background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 6,
-                    color: '#e5e7eb', padding: '6px 8px', fontSize: 12,
+                    background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
+                    color: 'var(--input-text)', padding: '6px 8px', fontSize: 12,
                     fontFamily: 'JetBrains Mono, monospace', outline: 'none',
                   }}
                 />
               )}
             </div>
           ))}
-          {error && <div style={{ fontSize: 11, color: '#f87171', marginBottom: 8 }}>{error}</div>}
+          {error && <div style={{ fontSize: 11, color: 'var(--sev-critical-color)', marginBottom: 8 }}>{error}</div>}
           <button
             onClick={start}
             style={{
@@ -225,7 +225,7 @@ function ScanResult({ record }) {
 
   return (
     <div style={{
-      background: '#090b0e', border: `1px solid ${failed ? '#450a0a' : '#1a2030'}`,
+      background: 'var(--bg-base)', border: `1px solid ${failed ? '#450a0a' : '#1a2030'}`,
       borderRadius: 8, marginBottom: 8, overflow: 'hidden',
     }}>
       <button
@@ -236,23 +236,23 @@ function ScanResult({ record }) {
         }}
       >
         <Icon size={13} color={failed ? '#ef4444' : color} style={{ flexShrink: 0 }} />
-        <span style={{ fontSize: 12, color: failed ? '#f87171' : '#e5e7eb', flex: 1, fontWeight: 500 }}>
+        <span style={{ fontSize: 12, color: failed ? 'var(--sev-critical-color)' : 'var(--input-text)', flex: 1, fontWeight: 500 }}>
           {def.label || record.scan_type}
           {record.port_range && (
-            <span style={{ color: '#4b5563', fontWeight: 400 }}> · {record.port_range}</span>
+            <span style={{ color: 'var(--label-color)', fontWeight: 400 }}> · {record.port_range}</span>
           )}
         </span>
-        <span style={{ fontSize: 11, color: '#374151', fontFamily: 'JetBrains Mono, monospace' }}>
+        <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>
           {fmt(record.scanned_at)}
         </span>
         {failed && <AlertTriangle size={11} color="#ef4444" style={{ marginLeft: 4 }} />}
-        {expanded ? <ChevronDown size={11} color="#374151" /> : <ChevronRight size={11} color="#374151" />}
+        {expanded ? <ChevronDown size={11} color="var(--label-color)" /> : <ChevronRight size={11} color="var(--label-color)" />}
       </button>
 
       {expanded && (
         <div style={{ borderTop: '1px solid #1a2030', padding: '10px 12px' }}>
           {failed ? (
-            <div style={{ fontSize: 12, color: '#f87171', fontFamily: 'JetBrains Mono, monospace' }}>
+            <div style={{ fontSize: 12, color: 'var(--sev-critical-color)', fontFamily: 'JetBrains Mono, monospace' }}>
               {record.error || 'Scan failed'}
             </div>
           ) : (
@@ -271,21 +271,21 @@ function ScanResultBody({ record, color }) {
     const ports = r.open_ports || []
     return (
       <div>
-        <div style={{ fontSize: 11, color: '#4b5563', marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: 'var(--label-color)', marginBottom: 8 }}>
           Scanned {r.ports_scanned ?? '?'} ports · {ports.length} open
         </div>
         {ports.length === 0 ? (
-          <span style={{ fontSize: 12, color: '#374151', fontFamily: 'JetBrains Mono, monospace' }}>No open ports found</span>
+          <span style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>No open ports found</span>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
             {ports.map(p => (
               <span key={p} style={{
-                background: '#0d1117', border: '1px solid #1e2530', borderRadius: 4,
+                background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 4,
                 padding: '2px 7px', fontSize: 11, fontFamily: 'JetBrains Mono, monospace',
-                color: '#e5e7eb',
+                color: 'var(--input-text)',
               }}>
                 <span style={{ color, fontWeight: 600 }}>{p}</span>
-                {COMMON_PORTS[p] && <span style={{ color: '#4b5563' }}> {COMMON_PORTS[p]}</span>}
+                {COMMON_PORTS[p] && <span style={{ color: 'var(--label-color)' }}> {COMMON_PORTS[p]}</span>}
               </span>
             ))}
           </div>
@@ -299,19 +299,19 @@ function ScanResultBody({ record, color }) {
     return (
       <div>
         {results.length === 0 ? (
-          <span style={{ fontSize: 12, color: '#374151' }}>No banners captured</span>
+          <span style={{ fontSize: 12, color: 'var(--label-color)' }}>No banners captured</span>
         ) : results.map((item, i) => (
           <div key={i} style={{ marginBottom: 10, fontFamily: 'JetBrains Mono, monospace' }}>
             <div style={{ fontSize: 11, color: color, marginBottom: 3 }}>
               {item.host}:{item.port}
-              {COMMON_PORTS[item.port] && <span style={{ color: '#4b5563' }}> ({COMMON_PORTS[item.port]})</span>}
+              {COMMON_PORTS[item.port] && <span style={{ color: 'var(--label-color)' }}> ({COMMON_PORTS[item.port]})</span>}
             </div>
             <pre style={{
-              background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 4,
-              padding: '6px 10px', fontSize: 11, color: '#9ca3af', margin: 0,
+              background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 4,
+              padding: '6px 10px', fontSize: 11, color: 'var(--btn-ghost-color)', margin: 0,
               overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
             }}>
-              {item.banner || <span style={{ color: '#374151' }}>(no banner)</span>}
+              {item.banner || <span style={{ color: 'var(--label-color)' }}>(no banner)</span>}
             </pre>
           </div>
         ))}
@@ -335,8 +335,8 @@ function ScanResultBody({ record, color }) {
                 ['Status', c.status],
               ].map(([k, v]) => (
                 <>
-                  <span key={k + 'k'} style={{ color: '#4b5563' }}>{k}</span>
-                  <span key={k + 'v'} style={{ color: c.days_remaining < 30 && k === 'Days left' ? '#f87171' : '#e5e7eb' }}>{String(v ?? '—')}</span>
+                  <span key={k + 'k'} style={{ color: 'var(--label-color)' }}>{k}</span>
+                  <span key={k + 'v'} style={{ color: c.days_remaining < 30 && k === 'Days left' ? 'var(--sev-critical-color)' : 'var(--input-text)' }}>{String(v ?? '—')}</span>
                 </>
               ))}
             </div>
@@ -353,20 +353,20 @@ function ScanResultBody({ record, color }) {
         {hosts.map((h, i) => (
           <div key={i} style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 11, color: color, marginBottom: 4 }}>{h.host}</div>
-            {h.os && <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>OS: {h.os}</div>}
+            {h.os && <div style={{ fontSize: 11, color: 'var(--btn-ghost-color)', marginBottom: 4 }}>OS: {h.os}</div>}
             {h.shares && h.shares.length > 0 && (
               <div>
-                <div style={{ fontSize: 10, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Shares</div>
+                <div style={{ fontSize: 10, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Shares</div>
                 {h.shares.map((s, j) => (
-                  <div key={j} style={{ fontSize: 11, color: s.guest_accessible ? '#f87171' : '#9ca3af', marginBottom: 2 }}>
+                  <div key={j} style={{ fontSize: 11, color: s.guest_accessible ? 'var(--sev-critical-color)' : 'var(--btn-ghost-color)', marginBottom: 2 }}>
                     {s.name} {s.guest_accessible ? '⚠ guest' : ''}
-                    {s.comment && <span style={{ color: '#4b5563' }}> — {s.comment}</span>}
+                    {s.comment && <span style={{ color: 'var(--label-color)' }}> — {s.comment}</span>}
                   </div>
                 ))}
               </div>
             )}
             {h.null_session && (
-              <div style={{ fontSize: 11, color: '#f87171', marginTop: 4 }}>⚠ Null session available</div>
+              <div style={{ fontSize: 11, color: 'var(--sev-critical-color)', marginTop: 4 }}>⚠ Null session available</div>
             )}
           </div>
         ))}
@@ -377,8 +377,8 @@ function ScanResultBody({ record, color }) {
   // Generic: nmap_scan, vuln_scan, or anything else — pretty-print JSON
   return (
     <pre style={{
-      background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 4,
-      padding: '10px 12px', fontSize: 11, color: '#9ca3af', margin: 0,
+      background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 4,
+      padding: '10px 12px', fontSize: 11, color: 'var(--btn-ghost-color)', margin: 0,
       overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
       maxHeight: 420, overflowY: 'auto',
     }}>
@@ -418,9 +418,9 @@ function NotesEditor({ mac, initialNotes, onSaved }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <FileText size={14} color="#4b5563" />
-        <span style={{ fontSize: 12, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes</span>
-        {saving && <span style={{ fontSize: 11, color: '#374151', marginLeft: 'auto' }}>Saving…</span>}
+        <FileText size={14} color="var(--label-color)" />
+        <span style={{ fontSize: 12, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes</span>
+        {saving && <span style={{ fontSize: 11, color: 'var(--label-color)', marginLeft: 'auto' }}>Saving…</span>}
         {!saving && saved && <span style={{ fontSize: 11, color: '#22c55e', marginLeft: 'auto' }}>Saved</span>}
       </div>
       <textarea
@@ -430,13 +430,13 @@ function NotesEditor({ mac, initialNotes, onSaved }) {
         rows={4}
         style={{
           width: '100%', boxSizing: 'border-box',
-          background: '#090b0e', border: '1px solid #1e2530', borderRadius: 8,
-          color: '#e5e7eb', padding: '10px 12px', fontSize: 12,
+          background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 8,
+          color: 'var(--input-text)', padding: '10px 12px', fontSize: 12,
           fontFamily: 'JetBrains Mono, monospace', outline: 'none', resize: 'vertical',
           lineHeight: 1.6,
         }}
         onFocus={e => e.target.style.borderColor = '#1e3a4a'}
-        onBlur={e  => e.target.style.borderColor = '#1e2530'}
+        onBlur={e  => e.target.style.borderColor = 'var(--bg-border)'}
       />
     </div>
   )
@@ -460,13 +460,13 @@ function InlineLabelEdit({ device, onSave }) {
         onChange={e => setValue(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
         style={{
-          background: '#0a0c0f', border: '1px solid #1e2530', borderRadius: 4,
-          color: '#e5e7eb', padding: '3px 8px', fontSize: 14, fontFamily: 'Syne, sans-serif',
+          background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 4,
+          color: 'var(--input-text)', padding: '3px 8px', fontSize: 14, fontFamily: 'Syne, sans-serif',
           outline: 'none', width: 200,
         }}
       />
       <button onClick={commit} style={iconBtn}><Check size={12} color="#22c55e" /></button>
-      <button onClick={() => setEditing(false)} style={iconBtn}><X size={12} color="#6b7280" /></button>
+      <button onClick={() => setEditing(false)} style={iconBtn}><X size={12} color="var(--btn-ghost-color)" /></button>
     </span>
   )
 
@@ -476,10 +476,10 @@ function InlineLabelEdit({ device, onSave }) {
       title="Click to edit label"
       style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
     >
-      <span style={{ fontSize: 20, fontWeight: 700, color: device.label ? '#f3f4f6' : '#374151', fontFamily: 'Syne, sans-serif' }}>
+      <span style={{ fontSize: 20, fontWeight: 700, color: device.label ? 'var(--input-text)' : 'var(--label-color)', fontFamily: 'Syne, sans-serif' }}>
         {device.label || device.ip || device.mac}
       </span>
-      <Pencil size={11} color="#374151" />
+      <Pencil size={11} color="var(--label-color)" />
     </span>
   )
 }
@@ -614,8 +614,8 @@ export default function NetworkDeviceDetailPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) return (
-    <div style={{ padding: '80px 0', textAlign: 'center', color: '#374151' }}>
-      <RefreshCw size={28} style={{ animation: 'spin 1s linear infinite', display: 'inline-block', color: '#1e2530' }} />
+    <div style={{ padding: '80px 0', textAlign: 'center', color: 'var(--label-color)' }}>
+      <RefreshCw size={28} style={{ animation: 'spin 1s linear infinite', display: 'inline-block', color: 'var(--bg-border)' }} />
       <p style={{ marginTop: 12, fontSize: 13 }}>Loading device…</p>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
@@ -623,10 +623,10 @@ export default function NetworkDeviceDetailPage() {
 
   if (error && !device) return (
     <div style={{ padding: '60px 32px' }}>
-      <button onClick={() => navigate('/network-history')} style={{ ...iconBtn, gap: 6, color: '#4b5563', fontSize: 13, marginBottom: 20 }}>
+      <button onClick={() => navigate('/network-history')} style={{ ...iconBtn, gap: 6, color: 'var(--label-color)', fontSize: 13, marginBottom: 20 }}>
         <ArrowLeft size={14} /> Back to Device History
       </button>
-      <div style={{ background: '#1a0a0a', border: '1px solid #450a0a', borderRadius: 8, padding: '12px 16px', color: '#f87171' }}>{error}</div>
+      <div style={{ background: '#1a0a0a', border: '1px solid #450a0a', borderRadius: 8, padding: '12px 16px', color: 'var(--sev-critical-color)' }}>{error}</div>
     </div>
   )
 
@@ -637,25 +637,25 @@ export default function NetworkDeviceDetailPage() {
       {/* Back nav */}
       <button
         onClick={() => navigate('/network-history')}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#4b5563', fontSize: 13, marginBottom: 20, padding: 0 }}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--label-color)', fontSize: 13, marginBottom: 20, padding: 0 }}
       >
         <ArrowLeft size={14} /> Back to Device History
       </button>
 
       {/* ── Device header ── */}
-      <div style={{ background: '#0d1117', border: '1px solid #1e2530', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 240 }}>
             <InlineLabelEdit device={device} onSave={saveLabel} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13, color: '#06b6d4', fontFamily: 'JetBrains Mono, monospace' }}>{device.ip || '—'}</span>
-              <span style={{ fontSize: 11, color: '#374151', fontFamily: 'JetBrains Mono, monospace' }}>{device.mac}</span>
+              <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>{device.mac}</span>
               {device.hostname && (
-                <span style={{ fontSize: 11, color: '#4b5563', fontFamily: 'JetBrains Mono, monospace' }}>{device.hostname}</span>
+                <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>{device.hostname}</span>
               )}
             </div>
             {device.vendor && (
-              <div style={{ fontSize: 12, color: '#374151', marginTop: 4 }}>{device.vendor}</div>
+              <div style={{ fontSize: 12, color: 'var(--label-color)', marginTop: 4 }}>{device.vendor}</div>
             )}
           </div>
 
@@ -664,10 +664,10 @@ export default function NetworkDeviceDetailPage() {
               onClick={toggleKnown}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                background: device.known ? '#0e2a14' : '#0a0c0f',
-                border: `1px solid ${device.known ? '#166534' : '#1e2530'}`,
+                background: device.known ? 'var(--green-dim)' : 'var(--bg-base)',
+                border: `1px solid ${device.known ? '#166534' : 'var(--bg-border)'}`,
                 borderRadius: 6, padding: '5px 12px', cursor: 'pointer',
-                color: device.known ? '#22c55e' : '#4b5563', fontSize: 12,
+                color: device.known ? '#22c55e' : 'var(--label-color)', fontSize: 12,
               }}
             >
               <CheckCircle size={12} />
@@ -675,7 +675,7 @@ export default function NetworkDeviceDetailPage() {
             </button>
             <button
               onClick={load}
-              style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: '1px solid #1e2530', borderRadius: 6, color: '#374151', padding: '4px 10px', cursor: 'pointer', fontSize: 11 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--label-color)', padding: '4px 10px', cursor: 'pointer', fontSize: 11 }}
             >
               <RefreshCw size={10} style={loading ? { animation: 'spin 1s linear infinite' } : undefined} />
               Refresh
@@ -692,15 +692,15 @@ export default function NetworkDeviceDetailPage() {
             ['Open ports', device.open_ports?.length != null ? device.open_ports.length : '—'],
           ].map(([k, v]) => (
             <div key={k}>
-              <div style={{ fontSize: 10, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{k}</div>
-              <div style={{ fontSize: 13, color: '#e5e7eb', fontFamily: 'JetBrains Mono, monospace' }}>{String(v)}</div>
+              <div style={{ fontSize: 10, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{k}</div>
+              <div style={{ fontSize: 13, color: 'var(--input-text)', fontFamily: 'JetBrains Mono, monospace' }}>{String(v)}</div>
             </div>
           ))}
         </div>
       </div>
 
       {error && (
-        <div style={{ background: '#1a0a0a', border: '1px solid #450a0a', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: '#f87171', fontSize: 13 }}>
+        <div style={{ background: '#1a0a0a', border: '1px solid #450a0a', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: 'var(--sev-critical-color)', fontSize: 13 }}>
           {error}
         </div>
       )}
@@ -712,18 +712,18 @@ export default function NetworkDeviceDetailPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* Notes */}
-          <div style={{ background: '#0d1117', border: '1px solid #1e2530', borderRadius: 12, padding: '18px 20px' }}>
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 12, padding: '18px 20px' }}>
             <NotesEditor mac={mac} initialNotes={device.notes} />
           </div>
 
           {/* Scan history */}
-          <div style={{ background: '#0d1117', border: '1px solid #1e2530', borderRadius: 12, padding: '18px 20px' }}>
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 12, padding: '18px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-              <Clock size={14} color="#4b5563" />
-              <span style={{ fontSize: 12, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <Clock size={14} color="var(--label-color)" />
+              <span style={{ fontSize: 12, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Scan History
               </span>
-              <span style={{ fontSize: 11, color: '#1e2530', marginLeft: 2 }}>({scans.length})</span>
+              <span style={{ fontSize: 11, color: 'var(--bg-border)', marginLeft: 2 }}>({scans.length})</span>
 
               {/* Type filter pills */}
               <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', flexWrap: 'wrap' }}>
@@ -734,10 +734,10 @@ export default function NetworkDeviceDetailPage() {
                       key={t}
                       onClick={() => setFilter(t)}
                       style={{
-                        background: filter === t ? (def?.color + '22' || '#1e2530') : 'none',
-                        border: `1px solid ${filter === t ? (def?.color + '55' || '#374151') : '#1e2530'}`,
+                        background: filter === t ? (def?.color + '22' || 'var(--bg-border)') : 'none',
+                        border: `1px solid ${filter === t ? (def?.color + '55' || 'var(--label-color)') : 'var(--bg-border)'}`,
                         borderRadius: 4, padding: '2px 8px', cursor: 'pointer',
-                        color: filter === t ? (def?.color || '#e5e7eb') : '#374151',
+                        color: filter === t ? (def?.color || 'var(--input-text)') : 'var(--label-color)',
                         fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em',
                       }}
                     >
@@ -749,9 +749,9 @@ export default function NetworkDeviceDetailPage() {
             </div>
 
             {filteredScans.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 0', color: '#1e2530' }}>
+              <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--bg-border)' }}>
                 <Clock size={36} style={{ marginBottom: 10 }} />
-                <p style={{ fontSize: 13, color: '#374151' }}>
+                <p style={{ fontSize: 13, color: 'var(--label-color)' }}>
                   {scans.length === 0 ? 'No scans recorded yet' : 'No scans match this filter'}
                 </p>
               </div>
@@ -762,10 +762,10 @@ export default function NetworkDeviceDetailPage() {
         </div>
 
         {/* Right: run scan panel */}
-        <div style={{ background: '#0d1117', border: '1px solid #1e2530', borderRadius: 12, padding: '18px 20px', position: 'sticky', top: 20 }}>
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 12, padding: '18px 20px', position: 'sticky', top: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <ScanLine size={14} color="#06b6d4" />
-            <span style={{ fontSize: 12, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <span style={{ fontSize: 12, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Run Scan
             </span>
             {!device.source_device_id && (
@@ -773,7 +773,7 @@ export default function NetworkDeviceDetailPage() {
             )}
           </div>
 
-          <div style={{ fontSize: 12, color: '#374151', fontFamily: 'JetBrains Mono, monospace', marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 14 }}>
             Target: <span style={{ color: '#06b6d4' }}>{device.ip || '—'}</span>
           </div>
 

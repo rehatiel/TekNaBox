@@ -5,7 +5,7 @@ import {
   PageHeader, StatusBadge, Spinner, Empty, Modal,
   Alert, Table, TR, TD, CodeBlock
 } from '../components/ui'
-import { CheckSquare, RefreshCw, Filter, X } from 'lucide-react'
+import { CheckSquare, RefreshCw, Filter, X, Search, RotateCcw, StopCircle } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 
 const STATUS_OPTIONS = ['', 'queued', 'dispatched', 'running', 'completed', 'failed', 'timeout', 'cancelled']
@@ -30,8 +30,10 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState(null)
+  const [actionBusy, setActionBusy] = useState(null) // taskId being acted on
 
   // Filters
+  const [filterSearch, setFilterSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterType, setFilterType] = useState('')
   const [filterDevice, setFilterDevice] = useState('')
@@ -77,14 +79,50 @@ export default function TasksPage() {
   const deviceName = id => devices.find(d => d.id === id)?.name || id?.slice(0, 8) + '…'
   const deviceCustomer = id => devices.find(d => d.id === id)
 
+  const handleCancel = async (taskId) => {
+    setActionBusy(taskId)
+    try {
+      await api.cancelTask(taskId)
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'cancelled' } : t))
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setActionBusy(null)
+    }
+  }
+
+  const handleRetry = async (task) => {
+    setActionBusy(task.id)
+    try {
+      await api.issueTask(task.device_id, {
+        task_type: task.task_type,
+        payload: task.payload || {},
+        timeout_seconds: task.timeout_seconds || 300,
+      })
+      await load()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setActionBusy(null)
+    }
+  }
+
   const customers = [...new Map(
     devices.filter(d => d.customer_id).map(d => [d.customer_id, d.customer_name || d.customer_id])
   ).entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
 
-  const hasFilters = filterStatus || filterType || filterDevice || filterCustomer
+  const hasFilters = filterSearch || filterStatus || filterType || filterDevice || filterCustomer
 
   // Client-side customer filter + sort
   const visibleTasks = [...tasks]
+    .filter(t => {
+      if (!filterSearch) return true
+      const q = filterSearch.toLowerCase()
+      return (
+        deviceName(t.device_id)?.toLowerCase().includes(q) ||
+        t.task_type?.toLowerCase().includes(q)
+      )
+    })
     .filter(t => !filterCustomer || deviceCustomer(t.device_id)?.customer_id === filterCustomer)
     .sort((a, b) => {
       const dir = sort.dir === 'asc' ? 1 : -1
@@ -141,6 +179,16 @@ export default function TasksPage() {
       <div className="card px-4 py-3 mb-4 flex flex-wrap items-center gap-3">
         <Filter className="w-3.5 h-3.5 text-slate-600 shrink-0" />
 
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-600 pointer-events-none" />
+          <input
+            className="input py-1 text-xs pl-8 w-44"
+            placeholder="Search device, type…"
+            value={filterSearch}
+            onChange={e => setFilterSearch(e.target.value)}
+          />
+        </div>
+
         <select
           className="input py-1 text-xs w-36"
           value={filterStatus}
@@ -189,7 +237,7 @@ export default function TasksPage() {
 
         {hasFilters && (
           <button
-            onClick={() => { setFilterStatus(''); setFilterType(''); setFilterDevice(''); setFilterCustomer('') }}
+            onClick={() => { setFilterSearch(''); setFilterStatus(''); setFilterType(''); setFilterDevice(''); setFilterCustomer('') }}
             className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
           >
             <X className="w-3 h-3" /> Clear
@@ -254,14 +302,36 @@ export default function TasksPage() {
                     <span className="text-xs font-mono text-slate-600">{duration}</span>
                   </TD>
                   <TD>
-                    {(t.result || t.error) && (
-                      <button
-                        onClick={() => setSelected(t)}
-                        className="text-xs text-cyan-muted hover:text-cyan-DEFAULT transition-colors"
-                      >
-                        View result
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {(t.result || t.error) && (
+                        <button
+                          onClick={() => setSelected(t)}
+                          className="text-xs text-cyan-muted hover:text-cyan-DEFAULT transition-colors"
+                        >
+                          View
+                        </button>
+                      )}
+                      {(t.status === 'queued' || t.status === 'dispatched') && (
+                        <button
+                          onClick={() => handleCancel(t.id)}
+                          disabled={actionBusy === t.id}
+                          title="Cancel task"
+                          className="p-1 text-slate-600 hover:text-red-DEFAULT transition-colors disabled:opacity-40"
+                        >
+                          <StopCircle className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {(t.status === 'failed' || t.status === 'timeout') && (
+                        <button
+                          onClick={() => handleRetry(t)}
+                          disabled={actionBusy === t.id}
+                          title="Retry task"
+                          className="p-1 text-slate-600 hover:text-cyan-DEFAULT transition-colors disabled:opacity-40"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </TD>
                 </TR>
               )

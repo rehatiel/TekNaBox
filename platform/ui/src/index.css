@@ -19,6 +19,48 @@
   --btn-ghost-border: #1e2630;
   --btn-ghost-color:  #94a3b8;
   --label-color: #64748b;
+
+  /* Colour palette tokens */
+  --cyan-dim:     rgba(6, 182, 212, 0.10);
+  --cyan-muted:   #164e63;
+  --cyan-DEFAULT: #06b6d4;
+  --cyan-bright:  #67e8f9;
+
+  --green-dim:     rgba(34, 197, 94, 0.10);
+  --green-muted:   #14532d;
+  --green-DEFAULT: #22c55e;
+  --green-bright:  #86efac;
+
+  --amber-dim:     rgba(234, 179, 8, 0.10);
+  --amber-muted:   #713f12;
+  --amber-DEFAULT: #eab308;
+  --amber-bright:  #fde047;
+
+  --red-dim:     rgba(239, 68, 68, 0.10);
+  --red-muted:   #7f1d1d;
+  --red-DEFAULT: #ef4444;
+  --red-bright:  #fca5a5;
+
+  /* Severity badge tokens */
+  --sev-critical-bg:     #450a0a;
+  --sev-critical-color:  #ef4444;
+  --sev-critical-border: #7f1d1d;
+
+  --sev-high-bg:     #431407;
+  --sev-high-color:  #f97316;
+  --sev-high-border: #7c2d12;
+
+  --sev-medium-bg:     #422006;
+  --sev-medium-color:  #eab308;
+  --sev-medium-border: #713f12;
+
+  --sev-low-bg:     #0c1a1f;
+  --sev-low-color:  #06b6d4;
+  --sev-low-border: #164e63;
+
+  --sev-info-bg:     #111827;
+  --sev-info-color:  #6b7280;
+  --sev-info-border: #1f2937;
 }
 
 html.light {
@@ -36,6 +78,48 @@ html.light {
   --btn-ghost-border: #cbd5e1;
   --btn-ghost-color:  #475569;
   --label-color: #64748b;
+
+  /* Colour palette tokens (light) */
+  --cyan-dim:     #cffafe;
+  --cyan-muted:   #0891b2;
+  --cyan-DEFAULT: #0891b2;
+  --cyan-bright:  #0e7490;
+
+  --green-dim:     #dcfce7;
+  --green-muted:   #166534;
+  --green-DEFAULT: #16a34a;
+  --green-bright:  #15803d;
+
+  --amber-dim:     #fef9c3;
+  --amber-muted:   #a16207;
+  --amber-DEFAULT: #d97706;
+  --amber-bright:  #92400e;
+
+  --red-dim:     #fee2e2;
+  --red-muted:   #b91c1c;
+  --red-DEFAULT: #dc2626;
+  --red-bright:  #991b1b;
+
+  /* Severity badge tokens (light) */
+  --sev-critical-bg:     #fee2e2;
+  --sev-critical-color:  #dc2626;
+  --sev-critical-border: #fca5a5;
+
+  --sev-high-bg:     #ffedd5;
+  --sev-high-color:  #c2410c;
+  --sev-high-border: #fdba74;
+
+  --sev-medium-bg:     #fef9c3;
+  --sev-medium-color:  #a16207;
+  --sev-medium-border: #fde047;
+
+  --sev-low-bg:     #cffafe;
+  --sev-low-color:  #0e7490;
+  --sev-low-border: #a5f3fc;
+
+  --sev-info-bg:     #f3f4f6;
+  --sev-info-color:  #4b5563;
+  --sev-info-border: #d1d5db;
 }
 
 /* ── Base ──────────────────────────────────────────────────────────────────── */
@@ -65,9 +149,16 @@ html.light .text-slate-500 { color: #475569; }
 html.light .text-slate-600 { color: #64748b; }
 html.light .text-slate-700 { color: #94a3b8; }
 
-/* Nav active state */
-html.light .text-cyan-bright { color: #0e7490; }
-html.light .bg-cyan-dim { background-color: #cffafe; }
+/* Light overrides for hardcoded Tailwind gray/bg classes used in pages */
+html.light .bg-gray-800,
+html.light .bg-gray-900  { background-color: #ffffff; }
+html.light .border-gray-700 { border-color: #e2e8f0; }
+html.light .text-white   { color: #0f172a; }
+html.light .text-gray-100,
+html.light .text-gray-200,
+html.light .text-gray-300 { color: #1e293b; }
+html.light .text-gray-400,
+html.light .text-gray-500 { color: #475569; }
 
 /* Gradient override for light */
 html.light body {

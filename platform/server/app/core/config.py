@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     default_update_check_interval_seconds: int = 300
     update_scheduler_interval: int = 300
 
+    # ── SMTP (alerts) ─────────────────────────────────────────────────────────
+    # Leave smtp_host unset to disable email alerting.
+    smtp_host:     Optional[str] = None
+    smtp_port:     int           = 587
+    smtp_user:     Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from:     Optional[str] = None   # defaults to smtp_user if unset
+    smtp_tls:      bool          = False  # True = SSL on port 465, False = STARTTLS
+
     # ── CORS ──────────────────────────────────────────────────────────────────
     cors_origins: str = "*"
 

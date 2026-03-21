@@ -29,7 +29,7 @@ from app.models.models import (
     MSPOrganization, CustomerOrganization, Site, Device, DeviceStatus,
     DeviceRole, Task, TaskStatus, Operator, OperatorRole,
     ClientRelease, UpdatePolicy, DeviceUpdateJob, UpdateStatus, AuditAction,
-    DiscoveredDevice, DeviceScanRecord,
+    DiscoveredDevice, DeviceScanRecord, AlertConfig,
 )
 from app.services.audit import write_audit
 
@@ -768,6 +768,28 @@ async def get_task(
     return _task_dict(task)
 
 
+@router.patch("/tasks/{task_id}/cancel")
+async def cancel_task(
+    task_id: str,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel a queued or dispatched task."""
+    task = (await db.execute(
+        select(Task).where(
+            and_(Task.id == task_id, Task.msp_id == operator.msp_id)
+        )
+    )).scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.status not in (TaskStatus.QUEUED, TaskStatus.DISPATCHED):
+        raise HTTPException(status_code=409, detail="Only queued or dispatched tasks can be cancelled")
+    task.status = TaskStatus.CANCELLED
+    task.completed_at = datetime.now(timezone.utc)
+    await db.commit()
+    return _task_dict(task)
+
+
 @router.get("/tasks")
 async def list_all_tasks(
     device_id: Optional[str] = None,
@@ -1211,3 +1233,113 @@ async def get_ws_ticket(
     """
     ticket = await issue_ws_ticket(operator.id, operator.msp_id)
     return {"ticket": ticket, "expires_in": 30}
+
+
+# ── Alert Configuration ────────────────────────────────────────────────────────
+
+class AlertConfigUpdate(BaseModel):
+    alert_email:              Optional[str]  = None
+    webhook_url:              Optional[str]  = None
+    notify_offline:           Optional[bool] = None
+    notify_critical_findings: Optional[bool] = None
+    notify_high_findings:     Optional[bool] = None
+    notify_failed_tasks:      Optional[bool] = None
+
+
+def _alert_config_dict(cfg: AlertConfig) -> dict:
+    return {
+        "alert_email":              cfg.alert_email,
+        "webhook_url":              cfg.webhook_url,
+        "notify_offline":           cfg.notify_offline,
+        "notify_critical_findings": cfg.notify_critical_findings,
+        "notify_high_findings":     cfg.notify_high_findings,
+        "notify_failed_tasks":      cfg.notify_failed_tasks,
+        "smtp_configured":          bool(get_settings().smtp_host),
+    }
+
+
+_ALERT_DEFAULTS = {
+    "alert_email": None,
+    "webhook_url": None,
+    "notify_offline": True,
+    "notify_critical_findings": True,
+    "notify_high_findings": False,
+    "notify_failed_tasks": False,
+    "smtp_configured": False,
+}
+
+
+@router.get("/alerts/config")
+async def get_alert_config(
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(AlertConfig).where(AlertConfig.msp_id == operator.msp_id)
+    )
+    cfg = result.scalar_one_or_none()
+    if not cfg:
+        return {**_ALERT_DEFAULTS, "smtp_configured": bool(get_settings().smtp_host)}
+    return _alert_config_dict(cfg)
+
+
+@router.patch("/alerts/config")
+async def update_alert_config(
+    data: AlertConfigUpdate,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(AlertConfig).where(AlertConfig.msp_id == operator.msp_id)
+    )
+    cfg = result.scalar_one_or_none()
+    if not cfg:
+        cfg = AlertConfig(
+            msp_id=operator.msp_id,
+            last_finding_alert_at=datetime.now(timezone.utc),
+        )
+        db.add(cfg)
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(cfg, field, value)
+
+    cfg.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(cfg)
+    return _alert_config_dict(cfg)
+
+
+@router.post("/alerts/test")
+async def send_test_alert(
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.mailer import send_test_alert as _send_test
+
+    result = await db.execute(
+        select(AlertConfig).where(AlertConfig.msp_id == operator.msp_id)
+    )
+    cfg = result.scalar_one_or_none()
+    if not cfg or not cfg.alert_email:
+        raise HTTPException(status_code=400, detail="No alert email configured. Save your email address first.")
+    if not get_settings().smtp_host:
+        raise HTTPException(status_code=503, detail="SMTP is not configured on this server.")
+    await _send_test(cfg.alert_email)
+    return {"status": "sent", "to": cfg.alert_email}
+
+
+@router.post("/alerts/test-webhook")
+async def send_test_webhook(
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.webhooker import send_test_webhook as _send_test_wh
+
+    result = await db.execute(
+        select(AlertConfig).where(AlertConfig.msp_id == operator.msp_id)
+    )
+    cfg = result.scalar_one_or_none()
+    if not cfg or not cfg.webhook_url:
+        raise HTTPException(status_code=400, detail="No webhook URL configured. Save your webhook URL first.")
+    await _send_test_wh(cfg.webhook_url)
+    return {"status": "sent", "url": cfg.webhook_url}

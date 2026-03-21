@@ -57,7 +57,7 @@ function LiveTOTP({ secret }) {
     <div className="flex items-center gap-3 bg-gray-800 border border-gray-700 rounded-lg px-4 py-3">
       <div className="relative w-8 h-8 shrink-0">
         <svg viewBox="0 0 32 32" className="w-full h-full -rotate-90">
-          <circle cx="16" cy="16" r="13" fill="none" stroke="#374151" strokeWidth="3" />
+          <circle cx="16" cy="16" r="13" fill="none" stroke="var(--label-color)" strokeWidth="3" />
           <circle cx="16" cy="16" r="13" fill="none" stroke={color}
             strokeWidth="3" strokeLinecap="round"
             strokeDasharray={`${2 * Math.PI * 13}`}

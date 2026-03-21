@@ -108,6 +108,7 @@ export const api = {
     return get(`/v1/tasks${q ? `?${q}` : ''}`)
   },
   issueTask:     (deviceId, data) => post(`/v1/devices/${deviceId}/tasks`, data),
+  cancelTask:    (taskId)         => patch(`/v1/tasks/${taskId}/cancel`),
   getTask:       (taskId)         => get(`/v1/tasks/${taskId}`),
   getTaskTypes:  () => get('/v1/task-types'),
 
@@ -160,6 +161,12 @@ export const api = {
   updateDevicePorts:       (mac, ports)    => patch(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/ports`, { open_ports: ports }),
   saveScanRecord:          (mac, body)     => post(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/scans`, body),
   updateDeviceNotes:       (mac, notes)    => patch(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/notes`, { notes }),
+
+  // ── Alert Config ──────────────────────────────────────────────────────────
+  getAlertConfig:    ()     => get('/v1/alerts/config'),
+  updateAlertConfig: (data) => patch('/v1/alerts/config', data),
+  testAlert:         ()     => post('/v1/alerts/test', {}),
+  testWebhook:       ()     => post('/v1/alerts/test-webhook', {}),
 
   // ── Generic helpers ───────────────────────────────────────────────────────
   get:    (path) => get(path),
