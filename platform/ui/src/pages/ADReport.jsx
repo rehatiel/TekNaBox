@@ -1149,7 +1149,7 @@ function DiscoverModal({ deviceId, onClose, onDiscovered }) {
               <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-200">Close</button>
               {result.domain_name && result.domain_controllers?.[0] && (
                 <button onClick={() => onDiscovered(result)}
-                  className="px-4 py-2 bg-cyan-DEFAULT hover:bg-cyan-bright text-bg-base rounded text-sm font-medium">
+                  className="px-4 py-2 bg-cyan-DEFAULT hover:bg-cyan-bright text-slate-900 rounded text-sm font-medium">
                   Enter Credentials →
                 </button>
               )}

@@ -87,9 +87,19 @@ export default function Breadcrumbs() {
           continue
         }
 
-        // Segment after 'network-device' is a MAC address
+        // Segment after 'network-device' is a MAC address — show IP instead
         if (prev === 'network-device') {
-          result.push({ label: decodeURIComponent(seg), to })
+          const cacheKey = 'netdev_' + seg
+          if (!nameCache[cacheKey]) {
+            try {
+              const mac = decodeURIComponent(seg)
+              const detail = await api.get(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/detail`)
+              nameCache[cacheKey] = detail?.ip || mac
+            } catch {
+              nameCache[cacheKey] = decodeURIComponent(seg)
+            }
+          }
+          result.push({ label: nameCache[cacheKey], to })
           continue
         }
 

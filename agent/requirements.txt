@@ -19,3 +19,7 @@ speedtest-cli>=2.1.3
 # ── Optional: VLAN hopping security test ──────────────────────────────────────
 # Used by tasks/vlan_hop.py. Requires CAP_NET_RAW (root). Falls back gracefully.
 scapy>=2.5.0
+
+# ── Optional: Agentless Windows monitoring ────────────────────────────────────
+# Used by tasks/windows_probe.py. Falls back gracefully if not installed.
+pywinrm>=0.4.3

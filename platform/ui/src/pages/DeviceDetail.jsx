@@ -303,6 +303,24 @@ const TASK_GROUPS = [
     ],
   },
   {
+    label: 'Windows (Agentless)',
+    tasks: [
+      {
+        value: 'run_windows_probe',
+        label: 'Windows Probe',
+        desc: 'Inventory and security posture via WinRM — no software installed on target',
+        note: 'Requires WinRM enabled on the target (default on Server editions). Credentials are used only during the task and are never stored.',
+        fields: [
+          { key: 'target',   label: 'Target IP / Hostname', type: 'text',     placeholder: '192.168.1.10',          required: true },
+          { key: 'username', label: 'Username',              type: 'text',     placeholder: 'Administrator or DOMAIN\\user', required: true },
+          { key: 'password', label: 'Password',              type: 'password', placeholder: '',                      required: true },
+          { key: 'port',     label: 'WinRM Port',            type: 'number',   placeholder: '5985', min: 1, max: 65535 },
+          { key: 'use_ssl',  label: 'Use HTTPS (port 5986)', type: 'checkbox' },
+        ],
+      },
+    ],
+  },
+  {
     label: 'Active Directory',
     tasks: [
       {
@@ -330,20 +348,32 @@ const REPORTABLE = [
   'run_ssl_check','run_dns_health','run_default_creds','run_cleartext_services',
   'run_smb_enum','run_netbios_scan','run_lldp_neighbors','run_ntp_check',
   'run_http_monitor','run_security_audit','run_vuln_scan','run_ad_discover',
-  'run_email_breach',
+  'run_email_breach','run_windows_probe',
 ]
 
 // ── Smart task form ───────────────────────────────────────────────────────────
 
 function TaskForm({ device, onIssued }) {
-  const [selectedTask, setSelected] = useState(TASK_GROUPS[0].tasks[0])
-  const [values, setValues]         = useState({})
-  const [loading, setLoading]       = useState(false)
-  const [error, setError]           = useState('')
-  const [success, setSuccess]       = useState(null)
+  const [activeGroup,   setActiveGroup] = useState(0)
+  const [selectedTask,  setSelected]    = useState(null)
+  const [values,        setValues]      = useState({})
+  const [loading,       setLoading]     = useState(false)
+  const [error,         setError]       = useState('')
+  const [success,       setSuccess]     = useState(null)
+
+  const currentGroup = TASK_GROUPS[activeGroup]
+
+  const selectGroup = (idx) => {
+    setActiveGroup(idx)
+    setSelected(null)
+    setValues({})
+    setError('')
+    setSuccess(null)
+  }
 
   const selectTask = (task) => {
-    setSelected(task)
+    if (task.disabled) return
+    setSelected(prev => prev?.value === task.value ? null : task)
     setValues({})
     setError('')
     setSuccess(null)
@@ -365,7 +395,7 @@ function TaskForm({ device, onIssued }) {
   }
 
   const submit = async () => {
-    if (selectedTask.disabled || device.status !== 'active') return
+    if (!selectedTask || selectedTask.disabled || device.status !== 'active') return
     setLoading(true)
     setError('')
     setSuccess(null)
@@ -387,143 +417,150 @@ function TaskForm({ device, onIssued }) {
 
   return (
     <div className="card overflow-hidden">
-      <div className="px-4 pt-4 pb-3 border-b border-bg-border flex items-center justify-between">
-        <h2 className="font-display font-600 text-slate-200 text-sm">Run Task</h2>
-        {device.status !== 'active' && (
-          <span className="text-xs text-amber-DEFAULT font-mono">Device must be active to run tasks</span>
-        )}
+
+      {/* ── Header + category tabs ── */}
+      <div className="px-4 pt-4 border-b border-bg-border">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-display font-600 text-slate-200 text-sm">Run Task</h2>
+          {device.status !== 'active' && (
+            <span className="text-xs text-amber-DEFAULT font-mono">Device must be active to run tasks</span>
+          )}
+        </div>
+        <div className="flex gap-0 -mb-px overflow-x-auto">
+          {TASK_GROUPS.map((group, i) => (
+            <button
+              key={i}
+              onClick={() => selectGroup(i)}
+              className={`px-4 py-2 text-xs font-display font-500 border-b-2 whitespace-nowrap transition-colors
+                ${activeGroup === i
+                  ? 'border-cyan-DEFAULT text-cyan-DEFAULT'
+                  : 'border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-600'
+                }`}
+            >
+              {group.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="flex" style={{ minHeight: '260px' }}>
-        {/* Left: task selector */}
-        <div className="w-44 shrink-0 border-r border-bg-border overflow-y-auto">
-          {TASK_GROUPS.map(group => (
-            <div key={group.label}>
-              <div className="px-3 pt-3 pb-1">
-                <span className="text-xs font-display font-500 text-slate-600 uppercase tracking-wider">
-                  {group.label}
-                </span>
-              </div>
-              {group.tasks.map(task => (
-                <button
-                  key={task.value}
-                  onClick={() => !task.disabled && selectTask(task)}
-                  className={`w-full text-left px-3 py-2 text-xs transition-colors
-                    ${task.disabled
-                      ? 'opacity-35 cursor-not-allowed text-slate-600'
-                      : selectedTask.value === task.value
-                        ? 'bg-cyan-dim text-cyan-DEFAULT font-display font-500'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-bg-elevated'
-                    }`}
-                >
-                  {task.label}
-                </button>
-              ))}
-            </div>
+      {/* ── Task grid ── */}
+      <div className="p-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-4">
+          {currentGroup.tasks.map(task => (
+            <button
+              key={task.value}
+              onClick={() => selectTask(task)}
+              disabled={task.disabled}
+              className={`text-left px-3 py-2.5 rounded border transition-all
+                ${task.disabled
+                  ? 'opacity-35 cursor-not-allowed border-bg-border text-slate-600'
+                  : selectedTask?.value === task.value
+                    ? 'border-cyan-DEFAULT/60 bg-cyan-dim text-cyan-DEFAULT'
+                    : 'border-bg-border bg-bg-elevated text-slate-400 hover:border-slate-600 hover:text-slate-200 hover:bg-bg-card'
+                }`}
+            >
+              <p className="text-xs font-display font-500 leading-tight">{task.label}</p>
+              <p className="text-[10px] text-slate-600 mt-0.5 leading-tight line-clamp-2">
+                {task.disabledMsg || task.desc}
+              </p>
+            </button>
           ))}
         </div>
 
-        {/* Right: form area */}
-        <div className="flex-1 p-5 flex flex-col">
-          <div className="mb-4">
-            <p className="text-sm font-display font-500 text-slate-200 mb-0.5">{selectedTask.label}</p>
-            <p className="text-xs text-slate-500">
-              {selectedTask.disabledMsg || selectedTask.desc}
-            </p>
-          </div>
-
-          {!selectedTask.disabled && (
-            <>
-              {selectedTask.note && (
-                <div className="mb-3 px-3 py-2 rounded text-xs text-slate-400 bg-bg-card border border-bg-border leading-relaxed">
-                  ℹ️ {selectedTask.note}
-                </div>
-              )}
-
-              {selectedTask.fields.length === 0 ? (
-                <p className="text-xs text-slate-600 italic mb-4">No configuration required — ready to run.</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-4">
-                  {selectedTask.fields.map(field => (
-                    <div key={field.key}>
-                      <label className="label mb-1">{field.label}</label>
-                      {field.type === 'select' ? (
-                        <select
-                          className="input w-full py-1.5 text-xs"
-                          value={values[field.key] ?? field.options[0].value}
-                          onChange={e => setValue(field.key, e.target.value)}
-                        >
-                          {field.options.map(o => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
-                          ))}
-                        </select>
-                      ) : field.type === 'checkbox' ? (
-                        <label className="flex items-center gap-2 cursor-pointer mt-1.5">
-                          <input
-                            type="checkbox"
-                            checked={!!values[field.key]}
-                            onChange={e => setValue(field.key, e.target.checked)}
-                          />
-                          <span className="text-xs text-slate-400">Enable</span>
-                        </label>
-                      ) : (
-                        <input
-                          type={field.type === 'password' ? 'password' : field.type === 'number' ? 'number' : 'text'}
-                          className="input w-full py-1.5 text-xs"
-                          placeholder={field.placeholder}
-                          value={values[field.key] ?? ''}
-                          onChange={e => setValue(field.key, e.target.value)}
-                          min={field.min}
-                          max={field.max}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {error && <Alert type="error" message={error} className="mb-3" />}
-              {success && (
-                <>
-                  <Alert type="success" message={`Task queued — ${success.task_id || success.id || 'queued'}`} className="mb-2" />
-                  {success.warning && (
-                    <Alert type="warning" message={success.warning} className="mb-3" />
-                  )}
-                </>
-              )}
-
-              <div className="mt-auto flex items-center gap-3">
-                <button
-                  onClick={submit}
-                  disabled={loading || device.status !== 'active'}
-                  className="btn-primary flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? <Spinner className="w-3.5 h-3.5" />
-                    : success ? <Check className="w-3.5 h-3.5" />
-                    : <Play className="w-3.5 h-3.5" />}
-                  {loading ? 'Queuing…' : success ? 'Queued!' : `Run ${selectedTask.label}`}
-                </button>
-
-                {success && REPORTABLE.includes(selectedTask.value) && (
-                  <Link
-                    to={`/reports?device=${device.id}`}
-                    className="text-xs text-cyan-muted hover:text-cyan-DEFAULT transition-colors"
-                  >
-                    View in Reports →
-                  </Link>
-                )}
-                {success && selectedTask.value === 'run_snmp_query' && (
-                  <Link
-                    to={`/snmp?device=${device.id}`}
-                    className="text-xs text-cyan-muted hover:text-cyan-DEFAULT transition-colors"
-                  >
-                    View in SNMP →
-                  </Link>
-                )}
+        {/* ── Inline form for selected task ── */}
+        {selectedTask && (
+          <div className="border-t border-bg-border pt-4 animate-fade-in">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-sm font-display font-500 text-slate-200">{selectedTask.label}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{selectedTask.desc}</p>
               </div>
-            </>
-          )}
-        </div>
+              <button onClick={() => setSelected(null)} className="text-slate-600 hover:text-slate-400 ml-4 mt-0.5">
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            {selectedTask.note && (
+              <div className="mb-3 px-3 py-2 rounded text-xs text-slate-400 bg-bg-card border border-bg-border leading-relaxed">
+                ℹ️ {selectedTask.note}
+              </div>
+            )}
+
+            {selectedTask.fields.length === 0 ? (
+              <p className="text-xs text-slate-600 italic mb-4">No configuration required — ready to run.</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-4">
+                {selectedTask.fields.map(field => (
+                  <div key={field.key}>
+                    <label className="label mb-1">{field.label}</label>
+                    {field.type === 'select' ? (
+                      <select
+                        className="input w-full py-1.5 text-xs"
+                        value={values[field.key] ?? field.options[0].value}
+                        onChange={e => setValue(field.key, e.target.value)}
+                      >
+                        {field.options.map(o => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    ) : field.type === 'checkbox' ? (
+                      <label className="flex items-center gap-2 cursor-pointer mt-1.5">
+                        <input
+                          type="checkbox"
+                          checked={!!values[field.key]}
+                          onChange={e => setValue(field.key, e.target.checked)}
+                        />
+                        <span className="text-xs text-slate-400">Enable</span>
+                      </label>
+                    ) : (
+                      <input
+                        type={field.type === 'password' ? 'password' : field.type === 'number' ? 'number' : 'text'}
+                        className="input w-full py-1.5 text-xs"
+                        placeholder={field.placeholder}
+                        value={values[field.key] ?? ''}
+                        onChange={e => setValue(field.key, e.target.value)}
+                        min={field.min}
+                        max={field.max}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {error && <Alert type="error" message={error} className="mb-3" />}
+            {success && (
+              <>
+                <Alert type="success" message={`Task queued — ${success.task_id || success.id || 'queued'}`} className="mb-2" />
+                {success.warning && <Alert type="warning" message={success.warning} className="mb-3" />}
+              </>
+            )}
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={submit}
+                disabled={loading || device.status !== 'active'}
+                className="btn-primary flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? <Spinner className="w-3.5 h-3.5" />
+                  : success ? <Check className="w-3.5 h-3.5" />
+                  : <Play className="w-3.5 h-3.5" />}
+                {loading ? 'Queuing…' : success ? 'Queued!' : `Run ${selectedTask.label}`}
+              </button>
+
+              {success && REPORTABLE.includes(selectedTask.value) && (
+                <Link to={`/reports?device=${device.id}`} className="text-xs text-cyan-muted hover:text-cyan-DEFAULT transition-colors">
+                  View in Reports →
+                </Link>
+              )}
+              {success && selectedTask.value === 'run_snmp_query' && (
+                <Link to={`/snmp?device=${device.id}`} className="text-xs text-cyan-muted hover:text-cyan-DEFAULT transition-colors">
+                  View in SNMP →
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

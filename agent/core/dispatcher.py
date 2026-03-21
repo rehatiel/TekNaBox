@@ -63,6 +63,9 @@ TASK_HANDLERS = {
     "run_ad_discover":          "tasks.ad_discover",
     "run_ad_recon":             "tasks.ad_recon",
 
+    # ── Agentless Windows ─────────────────────────────────────────────────────
+    "run_windows_probe":        "tasks.windows_probe",
+
     # ── Prospecting ───────────────────────────────────────────────────────────
     "run_email_breach":         "tasks.email_breach",
 }

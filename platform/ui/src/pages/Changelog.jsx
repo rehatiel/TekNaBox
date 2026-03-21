@@ -5,6 +5,29 @@ import { GitBranch, Shield, Bug, Sparkles, Wrench } from 'lucide-react'
 
 const RELEASES = [
   {
+    version: '3.6.0',
+    date: '2026-03-21',
+    summary: 'Agentless Windows monitoring via WinRM — inventory and security posture with no software on target',
+    entries: [
+      {
+        type: 'feature',
+        text: 'Windows Probe (run_windows_probe) — agentless inventory and security posture check for Windows machines via WinRM/PowerShell. No software installed on the target. Collects: OS version, CPU, RAM, disk usage per drive, network adapters, key services, local users and administrators, installed software (registry-based), hotfix history, firewall status per profile, RDP/NLA configuration, SMBv1, Windows Defender status and signature age, UAC, and AutoLogon.',
+      },
+      {
+        type: 'feature',
+        text: 'Windows Probe auto-generates security findings for: SMBv1 enabled (critical, CVE-2017-0144), firewall disabled per profile (critical), AutoLogon configured (high), RDP without NLA (high), Defender disabled or RTP off (high/medium), stale AV signatures (medium), UAC disabled (medium), end-of-life OS (medium), no Windows Updates in 90+ days (medium), excessive local admins (low), Guest account enabled (low). Findings are automatically saved to the platform and appear in Security Hub.',
+      },
+      {
+        type: 'feature',
+        text: 'Windows Probe task dispatch — new "Windows (Agentless)" group in the device task panel with fields for target IP/hostname, username (local or DOMAIN\\user), password, optional port and HTTPS toggle. Credentials are used only during task execution and are never stored.',
+      },
+      {
+        type: 'feature',
+        text: 'Windows Probe report renderer on the Reports page — security posture quick-view grid, colour-coded findings list, disk usage bars, network adapter table, local admins list, key services table, and installed software table.',
+      },
+    ],
+  },
+  {
     version: '3.5.2',
     date: '2026-03-21',
     summary: 'Reports coverage complete, uptime monitor fix, gitignore',

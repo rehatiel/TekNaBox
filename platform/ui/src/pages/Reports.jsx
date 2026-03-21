@@ -50,6 +50,8 @@ const REPORT_TYPES = [
   // Active Directory
   { value: 'run_ad_discover',        label: 'AD Discovery',         icon: Building2  },
   { value: 'run_ad_recon',           label: 'AD Recon',             icon: Building2  },
+  // Agentless Windows
+  { value: 'run_windows_probe',      label: 'Windows Probe',        icon: Monitor    },
 ]
 
 const REPORTABLE_TYPES = REPORT_TYPES.slice(1).map(t => t.value)
@@ -1333,6 +1335,271 @@ function AdDiscoverReport({ result }) {
   )
 }
 
+function WindowsProbeReport({ result, payload, deviceId }) {
+  const [bulkState, setBulkState] = useState(null) // null | 'loading' | {computers, queued, skipped} | 'error'
+  const [bulkMsg,   setBulkMsg]   = useState('')
+
+  if (!result) return null
+  if (result.error) return <p className="text-xs text-red-DEFAULT font-mono">{result.error}</p>
+
+  const {
+    hostname, os_caption, os_build, domain, domain_joined,
+    total_ram_gb, free_ram_gb, ram_pct,
+    cpu_name, cpu_cores, uptime_seconds,
+    disks = [], adapters = [], services = [], local_users = [], local_admins = [],
+    installed_software = [], hotfix_count, last_hotfix_kb,
+    firewall, rdp_enabled, rdp_nla, smb_v1,
+    defender_enabled, defender_rtp, defender_sig_age,
+    uac_enabled, autologon_enabled, autologon_user,
+    findings = [], target,
+  } = result
+
+  const isDC = domain_joined && services.some(s => s.name === 'Netlogon' && s.status === 'Running')
+
+  const probeAllDomainComputers = async () => {
+    if (!deviceId) { setBulkMsg('No agent device ID available.'); return }
+    setBulkState('loading')
+    setBulkMsg('')
+    try {
+      const tasks = await api.getAllTasks({ task_type: 'run_ad_recon', status: 'completed' })
+      const recon = tasks[0]
+      if (!recon?.result) { setBulkState('error'); setBulkMsg('No completed AD Recon found — run AD Recon first.'); return }
+      const computers = (recon.result.computers?.list || []).filter(c => c.enabled && (c.dns_hostname || c.name))
+      if (!computers.length) { setBulkState('error'); setBulkMsg('No enabled computers found in AD Recon result.'); return }
+      let queued = 0, skipped = 0
+      for (const comp of computers) {
+        const t = comp.dns_hostname || comp.name
+        if (!t) { skipped++; continue }
+        try {
+          await api.issueTask(deviceId, {
+            task_type: 'run_windows_probe',
+            payload: { target: t, username: payload?.username || '', password: payload?.password || '', port: payload?.port || 5985 },
+          })
+          queued++
+        } catch { skipped++ }
+      }
+      setBulkState({ computers: computers.length, queued, skipped })
+    } catch (e) {
+      setBulkState('error')
+      setBulkMsg(e.message || 'Failed to queue probes.')
+    }
+  }
+
+  const uptimeFmt = (s) => {
+    if (!s) return '—'
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60)
+    return [d && `${d}d`, h && `${h}h`, `${m}m`].filter(Boolean).join(' ')
+  }
+
+  const boolBadge = (val, trueLabel = 'Yes', falseLabel = 'No') => {
+    if (val === null || val === undefined) return <span className="text-slate-600">—</span>
+    return val
+      ? <span className="text-green-DEFAULT">{trueLabel}</span>
+      : <span className="text-red-DEFAULT">{falseLabel}</span>
+  }
+
+  const fwProfiles = Object.entries(firewall || {})
+  const critFindings = findings.filter(f => f.severity === 'critical').length
+  const highFindings = findings.filter(f => f.severity === 'high').length
+
+  return (
+    <div className="space-y-5">
+      {/* Connection info */}
+      {payload && (
+        <div className="card px-4 py-3">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-display font-600 text-slate-400">Connection</p>
+            {isDC && deviceId && (
+              <button
+                onClick={probeAllDomainComputers}
+                disabled={bulkState === 'loading'}
+                className="text-xs px-3 py-1 rounded bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 transition-colors disabled:opacity-50"
+              >
+                {bulkState === 'loading' ? 'Queueing…' : 'Probe All Domain Computers'}
+              </button>
+            )}
+          </div>
+          <div className="flex gap-8 text-xs">
+            <div><span className="text-slate-600">Target</span><br/><span className="font-mono text-slate-200">{payload.target || '—'}</span></div>
+            <div><span className="text-slate-600">Username</span><br/><span className="font-mono text-slate-200">{payload.username || '—'}</span></div>
+            <div><span className="text-slate-600">Password</span><br/><span className="font-mono text-slate-500">••••••••</span></div>
+            {isDC && <div><span className="text-slate-600">Role</span><br/><span className="text-cyan-DEFAULT font-mono">Domain Controller</span></div>}
+          </div>
+          {bulkState && bulkState !== 'loading' && (
+            <div className={`mt-3 text-xs px-3 py-2 rounded border ${bulkState === 'error' ? 'border-red-500/30 text-red-400 bg-red-500/10' : 'border-green-500/30 text-green-400 bg-green-500/10'}`}>
+              {bulkState === 'error'
+                ? bulkMsg
+                : `Queued ${bulkState.queued} Windows Probe task${bulkState.queued !== 1 ? 's' : ''}${bulkState.skipped ? ` (${bulkState.skipped} skipped — no hostname)` : ''}. Check Tasks page for progress.`
+              }
+            </div>
+          )}
+          {bulkMsg && bulkState !== 'error' && <p className="mt-2 text-xs text-red-400">{bulkMsg}</p>}
+        </div>
+      )}
+      {/* Stats */}
+      <StatCards items={[
+        { label: 'Hostname',    value: hostname || target },
+        { label: 'OS',          value: os_caption, color: 'text-slate-200' },
+        { label: 'Build',       value: os_build },
+        { label: 'Domain',      value: domain || '—', color: domain_joined ? 'text-cyan-DEFAULT' : 'text-slate-500' },
+        { label: 'Uptime',      value: uptimeFmt(uptime_seconds) },
+        { label: 'RAM',         value: `${ram_pct}%`, color: ram_pct > 90 ? 'text-red-DEFAULT' : ram_pct > 75 ? 'text-amber-DEFAULT' : 'text-green-DEFAULT' },
+        { label: 'Hotfixes',    value: hotfix_count },
+        { label: 'Findings',    value: findings.length, color: critFindings > 0 ? 'text-red-DEFAULT' : highFindings > 0 ? 'text-amber-DEFAULT' : 'text-green-DEFAULT' },
+      ]} />
+
+      {/* Security posture quick-view */}
+      <div className="card px-4 py-3">
+        <p className="text-xs font-display font-600 text-slate-400 mb-3">Security Posture</p>
+        <div className="grid grid-cols-2 gap-x-8 gap-y-1.5 text-xs">
+          {[
+            ['Firewall (Domain)',  fwProfiles.find(([k]) => k === 'Domain')?.[1]  ?? null],
+            ['Firewall (Private)', fwProfiles.find(([k]) => k === 'Private')?.[1] ?? null],
+            ['Firewall (Public)',  fwProfiles.find(([k]) => k === 'Public')?.[1]  ?? null],
+            ['SMBv1',              smb_v1 === true ? false : smb_v1 === false ? true : null, 'Disabled', 'Enabled'],
+            ['RDP',                rdp_enabled],
+            ['RDP NLA',            rdp_nla],
+            ['Windows Defender',   defender_enabled],
+            ['Real-Time Protection', defender_rtp],
+            ['UAC',                uac_enabled],
+            ['AutoLogon',          autologon_enabled === true ? false : autologon_enabled === false ? true : null, 'Off', 'On'],
+          ].map(([label, val, t, f]) => (
+            <div key={label} className="flex items-center justify-between gap-4">
+              <span className="text-slate-500">{label}</span>
+              {boolBadge(val, t, f)}
+            </div>
+          ))}
+          {autologon_user && (
+            <div className="flex items-center justify-between gap-4 col-span-2">
+              <span className="text-slate-500">AutoLogon User</span>
+              <span className="font-mono text-amber-DEFAULT">{autologon_user}</span>
+            </div>
+          )}
+          {defender_sig_age != null && (
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-slate-500">AV Sig Age</span>
+              <span className={defender_sig_age > 7 ? 'text-red-DEFAULT' : 'text-green-DEFAULT'}>{defender_sig_age}d</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Findings */}
+      {findings.length > 0 && (
+        <div>
+          <p className="text-xs font-display font-600 text-slate-400 mb-2">Findings ({findings.length})</p>
+          <div className="space-y-2">
+            {findings.map((f, i) => (
+              <div key={i} className="card px-3 py-2.5 flex gap-3 items-start">
+                <SevBadge severity={f.severity} />
+                <div className="min-w-0">
+                  <p className="text-xs font-600 text-slate-200">{f.title}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{f.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Disks */}
+      {disks.length > 0 && (
+        <div>
+          <p className="text-xs font-display font-600 text-slate-400 mb-2">Disk Usage</p>
+          <div className="space-y-2">
+            {disks.map((d, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <span className="text-xs font-mono text-cyan-DEFAULT w-8">{d.drive}</span>
+                {d.label && <span className="text-xs text-slate-500 w-24 truncate">{d.label}</span>}
+                <div className="flex-1 h-2 bg-bg-base rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${d.used_pct > 90 ? 'bg-red-DEFAULT' : d.used_pct > 75 ? 'bg-amber-DEFAULT' : 'bg-cyan-DEFAULT'}`}
+                    style={{ width: `${d.used_pct}%` }}
+                  />
+                </div>
+                <span className={`text-xs font-mono w-10 text-right ${d.used_pct > 90 ? 'text-red-DEFAULT' : d.used_pct > 75 ? 'text-amber-DEFAULT' : 'text-slate-400'}`}>
+                  {d.used_pct}%
+                </span>
+                <span className="text-xs text-slate-600 w-28 text-right">{d.free_gb} GB free / {d.total_gb} GB</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Network adapters */}
+      {adapters.length > 0 && (
+        <div>
+          <p className="text-xs font-display font-600 text-slate-400 mb-2">Network Adapters</p>
+          <Table headers={['Adapter', 'IP Address', 'Prefix']}>
+            {adapters.map((a, i) => (
+              <TR key={i}>
+                <TD><span className="text-xs text-slate-300">{a.adapter}</span></TD>
+                <TD><span className="text-xs font-mono text-cyan-DEFAULT">{a.ip}</span></TD>
+                <TD><span className="text-xs font-mono text-slate-500">/{a.prefix}</span></TD>
+              </TR>
+            ))}
+          </Table>
+        </div>
+      )}
+
+      {/* Local admins */}
+      {local_admins.length > 0 && (
+        <div>
+          <p className="text-xs font-display font-600 text-slate-400 mb-2">Local Administrators ({local_admins.length})</p>
+          <div className="flex flex-wrap gap-2">
+            {local_admins.map((a, i) => (
+              <span key={i} className={`text-xs font-mono px-2 py-1 rounded border ${local_admins.length > 3 ? 'bg-amber-dim border-amber-muted text-amber-DEFAULT' : 'bg-bg-elevated border-bg-border text-slate-300'}`}>
+                {a}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Key services */}
+      {services.length > 0 && (
+        <div>
+          <p className="text-xs font-display font-600 text-slate-400 mb-2">Key Services</p>
+          <Table headers={['Service', 'Display Name', 'Status', 'Start Type']}>
+            {services.map((s, i) => (
+              <TR key={i}>
+                <TD><span className="text-xs font-mono text-slate-400">{s.name}</span></TD>
+                <TD><span className="text-xs text-slate-300">{s.display}</span></TD>
+                <TD>
+                  <span className={`text-xs font-mono ${s.status === 'Running' ? 'text-green-DEFAULT' : 'text-slate-600'}`}>
+                    {s.status}
+                  </span>
+                </TD>
+                <TD><span className="text-xs font-mono text-slate-600">{s.start_type}</span></TD>
+              </TR>
+            ))}
+          </Table>
+        </div>
+      )}
+
+      {/* Installed software */}
+      {installed_software.length > 0 && (
+        <div>
+          <p className="text-xs font-display font-600 text-slate-400 mb-2">Installed Software ({installed_software.length})</p>
+          <Table headers={['Name', 'Version', 'Publisher']}>
+            {installed_software.slice(0, 50).map((s, i) => (
+              <TR key={i}>
+                <TD><span className="text-xs text-slate-300">{s.name}</span></TD>
+                <TD><span className="text-xs font-mono text-slate-500">{s.version || '—'}</span></TD>
+                <TD><span className="text-xs text-slate-600">{s.publisher || '—'}</span></TD>
+              </TR>
+            ))}
+          </Table>
+          {installed_software.length > 50 && (
+            <p className="text-xs text-slate-600 mt-2">Showing 50 of {installed_software.length} packages.</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AdReconReport({ result }) {
   if (!result) return null
   const {
@@ -1511,6 +1778,8 @@ function ReportRenderer({ task }) {
     // Active Directory
     case 'run_ad_discover':          return <AdDiscoverReport         result={result} payload={payload} />
     case 'run_ad_recon':             return <AdReconReport            result={result} payload={payload} />
+    // Agentless Windows
+    case 'run_windows_probe':        return <WindowsProbeReport       result={result} payload={payload} deviceId={task.device_id} />
     default:
       return (
         <pre className="text-xs font-mono text-slate-400 bg-bg-base border border-bg-border rounded p-3 overflow-auto max-h-64">
@@ -1641,7 +1910,7 @@ function ReportCard({ task, deviceName, customerName, siteName, expanded, onTogg
             </div>
             {task.payload && Object.keys(task.payload).length > 0 && (
               <div className="ml-auto flex gap-2 flex-wrap">
-                {Object.entries(task.payload).map(([k,v]) => (
+                {Object.entries(task.payload).filter(([k]) => k !== 'password').map(([k,v]) => (
                   <span key={k} className="text-xs font-mono text-slate-600">
                     {k}: <span className="text-slate-400">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
                   </span>

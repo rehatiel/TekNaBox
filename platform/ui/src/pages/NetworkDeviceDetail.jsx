@@ -9,7 +9,7 @@ import { api } from '../lib/api'
 import {
   ArrowLeft, RefreshCw, ScanLine, ChevronDown, ChevronRight,
   CheckCircle, Shield, Globe, Server, Wifi, FileText,
-  Pencil, Check, X, Clock, AlertTriangle, Terminal,
+  Pencil, Check, X, Clock, AlertTriangle, Terminal, Monitor,
 } from 'lucide-react'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -107,6 +107,18 @@ const SCAN_TYPES = [
     fields: [
       { key: 'username', label: 'Username (blank = null session)', placeholder: '', default: '' },
       { key: 'password', label: 'Password', placeholder: '', default: '', password: true },
+    ],
+  },
+  {
+    id: 'windows_probe',
+    label: 'Windows Probe',
+    icon: Monitor,
+    color: '#0078d4',
+    desc: 'Agentless Windows inventory & security posture via WinRM',
+    fields: [
+      { key: 'username', label: 'Username', placeholder: 'Administrator', default: '' },
+      { key: 'password', label: 'Password', placeholder: '', default: '', password: true },
+      { key: 'port',     label: 'WinRM Port', placeholder: '5985', default: '5985' },
     ],
   },
 ]
@@ -539,6 +551,8 @@ export default function NetworkDeviceDetailPage() {
         return { task_type: 'run_ssl_check', payload: { targets: [{ host: ip, port: parseInt(fields.port || '443', 10) }] } }
       case 'smb_enum':
         return { task_type: 'run_smb_enum', payload: { targets: [ip], username: fields.username || '', password: fields.password || '' } }
+      case 'windows_probe':
+        return { task_type: 'run_windows_probe', payload: { target: ip, username: fields.username || '', password: fields.password || '', port: parseInt(fields.port || '5985', 10) } }
       default:
         return null
     }

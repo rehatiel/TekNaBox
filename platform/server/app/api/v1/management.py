@@ -468,6 +468,8 @@ ALLOWED_TASK_TYPES: frozenset[str] = frozenset({
     "run_device_fingerprint",
     # Active Directory
     "run_ad_discover", "run_ad_recon",
+    # Agentless Windows
+    "run_windows_probe",
     # Prospecting
     "run_email_breach",
 })

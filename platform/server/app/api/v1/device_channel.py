@@ -320,7 +320,7 @@ async def _handle_task_result(db: AsyncSession, device_id: str, msg: dict) -> No
 
     # Fetch device once for any post-processing
     device_obj = None
-    if success and task.result and task.task_type in ("run_ad_recon", "run_vuln_scan", "run_security_audit"):
+    if success and task.result and task.task_type in ("run_ad_recon", "run_vuln_scan", "run_security_audit", "run_windows_probe"):
         device_result = await db.execute(select(Device).where(Device.id == device_id))
         device_obj = device_result.scalar_one_or_none()
 
@@ -333,8 +333,8 @@ async def _handle_task_result(db: AsyncSession, device_id: str, msg: dict) -> No
         except Exception as e:
             logger.error(f"ad_report_save_failed: {e}")
 
-    # Auto-save vuln scan / security audit findings
-    if success and task.task_type in ("run_vuln_scan", "run_security_audit") and task.result and device_obj:
+    # Auto-save vuln scan / security audit / windows probe findings
+    if success and task.task_type in ("run_vuln_scan", "run_security_audit", "run_windows_probe") and task.result and device_obj:
         try:
             from app.api.v1.security import save_scan_findings
             count = await save_scan_findings(db, task, device_obj, task.result)
