@@ -54,6 +54,8 @@ artifacts/
 # ── Vite / frontend cache ─────────────────────────────────────────────────────
 .vite/
 platform/ui/dist/
+platform/ui/.env
+platform/ui/.env.local
 
 # ── pytest / coverage ─────────────────────────────────────────────────────────
 .pytest_cache/
