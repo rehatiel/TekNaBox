@@ -1,6 +1,6 @@
-# MSP Command — Web UI
+# TekNaBox — Web UI
 
-React SPA for the MSP Remote Diagnostics Platform.
+React SPA for the TekNaBox MSP Remote Management Platform.
 
 ## Development
 

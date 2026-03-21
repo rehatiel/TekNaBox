@@ -38,6 +38,14 @@ async def get_current_operator(
     except JWTError:
         raise credentials_exception
 
+    # Check revocation blocklist
+    jti = payload.get("jti")
+    if jti:
+        from app.services.connection_manager import _get_redis
+        r = _get_redis()
+        if await r.exists(f"blocklist:jti:{jti}"):
+            raise credentials_exception
+
     result = await db.execute(select(Operator).where(Operator.id == operator_id))
     operator = result.scalar_one_or_none()
     if not operator or not operator.is_active:

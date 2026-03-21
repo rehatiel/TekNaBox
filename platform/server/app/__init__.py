@@ -1,1 +1,1 @@
-# MSP Platform Server
+# TekNaBox Server

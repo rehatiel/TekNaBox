@@ -257,9 +257,9 @@ export default function Devices() {
         <CreateDeviceModal
           sites={sites}
           onClose={() => setShowCreate(false)}
-          onCreated={(secret, name) => {
+          onCreated={(secret, name, bootstrapUrl) => {
             setShowCreate(false)
-            setShowResult({ type: 'enrollment', secret, name })
+            setShowResult({ type: 'enrollment', secret, name, bootstrapUrl })
             load()
           }}
         />
@@ -297,7 +297,7 @@ function CreateDeviceModal({ sites, onClose, onCreated }) {
     setError('')
     try {
       const data = await api.createDevice({ name, site_id: siteId, role })
-      onCreated(data.enrollment_secret, name)
+      onCreated(data.enrollment_secret, name, data.bootstrap_url)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -408,9 +408,6 @@ function IssueTaskModal({ device, onClose, onIssued }) {
 
 function ResultModal({ result, onClose }) {
   if (result.type === 'enrollment') {
-    const wsBase   = import.meta.env.VITE_WS_BASE || ''
-    const apiBase  = import.meta.env.VITE_API_BASE ||
-      wsBase.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://')
     return (
       <Modal title="Device Created" onClose={onClose}>
         <Alert type="success" message={`Device "${result.name}" created successfully.`} />
@@ -420,7 +417,7 @@ function ResultModal({ result, onClose }) {
           <p className="text-xs text-slate-600 mt-2">
             Run this on the target machine — downloads and installs everything automatically:
           </p>
-          <CodeBlock>{`curl -fsSL ${apiBase}/v1/agent/bootstrap | sudo bash -s -- --secret ${result.secret}`}</CodeBlock>
+          <CodeBlock>{`curl -fsSL ${result.bootstrapUrl} | sudo bash -s -- --secret ${result.secret}`}</CodeBlock>
         </div>
         <button onClick={onClose} className="btn-primary w-full mt-4">Done</button>
       </Modal>

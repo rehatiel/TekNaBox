@@ -10,10 +10,10 @@ export default {
       },
       colors: {
         bg: {
-          base:    '#0a0c0f',
-          surface: '#0f1318',
-          elevated:'#151a21',
-          border:  '#1e2630',
+          base:    'var(--bg-base)',
+          surface: 'var(--bg-surface)',
+          elevated:'var(--bg-elevated)',
+          border:  'var(--bg-border)',
         },
         cyan: {
           dim:    '#0e3340',

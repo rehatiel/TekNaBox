@@ -6,7 +6,7 @@
 
 - [ ] **Fix monitor module** — The monitor module is not actively pinging. Investigate and fix the ping loop. *(low priority)*
 
-- [ ] **Uptime monitor not recording data** — After the bug-fix rebuild, the uptime monitor page shows no data for configured targets. Likely cause: the `customer_id` column added to the `uptime_checks` table (migration 0005) has not been applied to the live database. Run migration 0005 on the server and verify data appears in the monitoring page. *(low priority)*
+- [ ] **Uptime monitor not recording data** — After the bug-fix rebuild, the uptime monitor page shows no data for configured targets. Investigate the uptime monitor task and verify data is being stored and retrieved correctly. *(low priority)*
 
 - [x] **Network device history page** — New `DiscoveredDevice` DB table (migration 0006), backend upsert/list/label/delete endpoints, and a new `/network-history` page showing all devices with first/last seen, known toggle, label editing, and search. Auto-populated by background monitoring. ✓ Done
 
@@ -22,7 +22,7 @@
 
 - [x] **VLAN hopping detection** — `run_vlan_hop` task (scapy, double-tag + DTP tests) added to Network Tools page with a result renderer showing per-test vulnerable/not-vulnerable status. ✓ Done
 
-- [ ] **HTTP monitor dedicated page** — The `run_http_monitor` task exists and runs but has no dedicated UI page. Build a page similar to SecurityHub that launches the task, shows results per URL (status code, response time, SSL expiry, content match, redirect chain), and saves history.
+- [x] **HTTP monitor dedicated page** — `/http-monitor` page with device selector, URL input, run button, polling, and result table (status, response time, SSL expiry, content match, redirect chain). ✓ Done
 
 - [ ] **SSL certificate expiry dashboard widget** — The `run_ssl_check` task already returns expiry dates. Add a dashboard widget (or dedicated panel on the Monitoring page) showing all certificates expiring within 30/60/90 days across all devices.
 
@@ -78,7 +78,7 @@
 
 - [ ] **Stale sysinfo warning** — Flag devices where the last completed sysinfo task is older than a configurable threshold (e.g. 7 days).
 
-- [ ] **Device notes and tags** — Allow operators to add free-text notes and searchable tags to devices (e.g. "router", "critical", "building-2"). Show tags on the device list for quick filtering.
+- [x] **Device notes and tags** — `notes` (text) and `tags` (JSONB array) columns on Device. `PATCH /devices/:id` endpoint. DeviceDetail shows inline edit panel with notes textarea and tag chip input. ✓ Done
 
 - [ ] **Offline reason display** — Distinguish between "never connected", "heartbeat timeout", and "manually revoked" in the device status badge and device detail page.
 
@@ -98,9 +98,9 @@
 
 - [ ] **Threat actor security audit** — Conduct a thorough security review of the entire platform (API, agent, frontend, Docker config) from an attacker's perspective. Cover: authentication/authorization flaws, JWT handling, WebSocket security, injection vectors, secrets management, container hardening, network exposure, and agent enrollment security. Document findings and remediate.
 
-- [ ] **Multi-factor authentication (MFA)** — Add TOTP-based MFA for operator login. Mandatory for super_admin and msp_admin roles given their access to remote shells on client devices.
+- [x] **Multi-factor authentication (MFA)** — TOTP-based MFA (pyotp) on operator accounts. Login issues an mfa_challenge token if MFA enabled; confirmed via `/auth/mfa/confirm`. Setup/enable/disable via `/mfa/setup`, `/mfa/enable`, `/mfa/disable`. Users page shows MFA status with setup/disable UI and admin force-reset. ✓ Done
 
-- [ ] **Session revocation** — Implement server-side JWT blocklist so a compromised operator account can be invalidated immediately without waiting for token expiry. Store revoked JIDs in Redis with TTL matching the token expiry window.
+- [x] **Session revocation** — JWT `jti` claim added to operator tokens. `POST /auth/logout` stores JTI in Redis blocklist with TTL = remaining token lifetime. Auth dependency checks blocklist on every request. ✓ Done
 
 - [ ] **Rate limiting on task dispatch** — Add per-operator rate limiting on the task dispatch endpoint to prevent an authenticated account from flooding a device with tasks.
 

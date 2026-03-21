@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-STATE_FILE = "/etc/msp-agent/network_state.json"
+STATE_FILE = "/etc/teknabox-agent/network_state.json"
 
 # Global configuration — updated by update_net_watch_config()
 _config: dict = {

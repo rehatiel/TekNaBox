@@ -1,5 +1,5 @@
 [Unit]
-Description=MSP Remote Diagnostics Agent
+Description=TekNaBox Agent
 Documentation=https://github.com/your-msp/agent
 After=network-online.target
 Wants=network-online.target
@@ -7,11 +7,11 @@ After=NetworkManager-wait-online.service
 
 [Service]
 Type=simple
-User=msp-agent
-Group=msp-agent
+User=teknabox-agent
+Group=teknabox-agent
 
-ExecStart=/usr/local/bin/msp-agent
-WorkingDirectory=/opt/msp-agent
+ExecStart=/usr/local/bin/teknabox-agent
+WorkingDirectory=/opt/teknabox-agent
 
 # Restart on any failure, with backoff
 Restart=always
@@ -26,19 +26,19 @@ KillSignal=SIGTERM
 FinalKillSignal=SIGKILL
 
 # Environment
-Environment=MSP_CONFIG_PATH=/etc/msp-agent/config.json
-Environment=MSP_AGENT_PATH=/usr/local/bin/msp-agent
+Environment=TEKNABOX_CONFIG_PATH=/etc/teknabox-agent/config.json
+Environment=TEKNABOX_AGENT_PATH=/usr/local/bin/teknabox-agent
 
 # Logging — stdout goes to journald automatically
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=msp-agent
+SyslogIdentifier=teknabox-agent
 
 # Hardening
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=full
-ReadWritePaths=/etc/msp-agent /var/log/msp-agent /tmp /opt/msp-agent
+ReadWritePaths=/etc/teknabox-agent /var/log/teknabox-agent /tmp /opt/teknabox-agent
 # Protect against OOM killer — agent is more important than most user processes
 OOMScoreAdjust=-100
 # Allow network access

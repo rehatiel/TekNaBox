@@ -2,6 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme tokens ──────────────────────────────────────────────────────────── */
+:root {
+  /* Dark (default) */
+  --bg-base:     #0a0c0f;
+  --bg-surface:  #0f1318;
+  --bg-elevated: #151a21;
+  --bg-border:   #1e2630;
+
+  --card-bg:     #0f1318;
+  --card-el-bg:  #151a21;
+  --input-bg:    #0a0c0f;
+  --input-text:  #e2e8f0;
+  --input-ph:    #475569;
+  --input-focus: #0d7490;
+  --btn-ghost-border: #1e2630;
+  --btn-ghost-color:  #94a3b8;
+  --label-color: #64748b;
+}
+
+html.light {
+  --bg-base:     #f1f5f9;
+  --bg-surface:  #ffffff;
+  --bg-elevated: #f8fafc;
+  --bg-border:   #e2e8f0;
+
+  --card-bg:     #ffffff;
+  --card-el-bg:  #f8fafc;
+  --input-bg:    #f8fafc;
+  --input-text:  #0f172a;
+  --input-ph:    #94a3b8;
+  --input-focus: #0891b2;
+  --btn-ghost-border: #cbd5e1;
+  --btn-ghost-color:  #475569;
+  --label-color: #64748b;
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────────── */
 @layer base {
   * { box-sizing: border-box; }
 
@@ -19,15 +56,35 @@
   ::selection { @apply bg-cyan-dim text-cyan-bright; }
 }
 
+/* ── Light mode — Tailwind text utility overrides ──────────────────────────── */
+html.light .text-slate-100 { color: #0f172a; }
+html.light .text-slate-200 { color: #0f172a; }
+html.light .text-slate-300 { color: #1e293b; }
+html.light .text-slate-400 { color: #334155; }
+html.light .text-slate-500 { color: #475569; }
+html.light .text-slate-600 { color: #64748b; }
+html.light .text-slate-700 { color: #94a3b8; }
+
+/* Nav active state */
+html.light .text-cyan-bright { color: #0e7490; }
+html.light .bg-cyan-dim { background-color: #cffafe; }
+
+/* Gradient override for light */
+html.light body {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(6,182,212,0.06) 0%, transparent 60%);
+}
+
+/* ── Components ────────────────────────────────────────────────────────────── */
 @layer components {
   .card {
-    background-color: #0f1318;
-    border: 1px solid #1e2630;
+    background-color: var(--card-bg);
+    border: 1px solid var(--bg-border);
     border-radius: 0.5rem;
   }
   .card-elevated {
-    background-color: #151a21;
-    border: 1px solid #1e2630;
+    background-color: var(--card-el-bg);
+    border: 1px solid var(--bg-border);
     border-radius: 0.5rem;
   }
   .btn-primary {
@@ -46,8 +103,8 @@
   .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .btn-ghost {
-    border: 1px solid #1e2630;
-    color: #94a3b8;
+    border: 1px solid var(--btn-ghost-border);
+    color: var(--btn-ghost-color);
     font-size: 0.875rem;
     padding: 0.5rem 1rem;
     border-radius: 0.25rem;
@@ -70,9 +127,9 @@
   .btn-danger:hover { background-color: #b91c1c; color: white; }
 
   .input {
-    background-color: #0a0c0f;
-    border: 1px solid #1e2630;
-    color: #e2e8f0;
+    background-color: var(--input-bg);
+    border: 1px solid var(--bg-border);
+    color: var(--input-text);
     font-size: 0.875rem;
     border-radius: 0.25rem;
     padding: 0.5rem 0.75rem;
@@ -81,8 +138,8 @@
     font-family: 'JetBrains Mono', monospace;
     outline: none;
   }
-  .input::placeholder { color: #475569; }
-  .input:focus { border-color: #0d7490; }
+  .input::placeholder { color: var(--input-ph); }
+  .input:focus { border-color: var(--input-focus); }
 
   select.input { cursor: pointer; }
 
@@ -90,7 +147,7 @@
     font-size: 0.75rem;
     font-family: 'Syne', sans-serif;
     font-weight: 500;
-    color: #64748b;
+    color: var(--label-color);
     text-transform: uppercase;
     letter-spacing: 0.1em;
     margin-bottom: 0.25rem;

@@ -1,4 +1,4 @@
-# MSP Command Platform
+# TekNaBox — Platform
 
 Complete deployment package — API + Worker + UI + Database + Cache.
 

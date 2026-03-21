@@ -2,7 +2,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 import secrets
 import hashlib
+import uuid
 import bcrypt
+import pyotp
 from jose import jwt, JWTError
 from app.core.config import get_settings
 
@@ -25,7 +27,10 @@ def verify_password(plain: str, hashed: str) -> bool:
 def create_operator_token(data: dict, expires_minutes: Optional[int] = None) -> str:
     exp = expires_minutes or settings.operator_token_expire_minutes
     payload = data.copy()
-    payload["exp"] = int((datetime.now(timezone.utc) + timedelta(minutes=exp)).timestamp())
+    now = datetime.now(timezone.utc)
+    payload["exp"] = int((now + timedelta(minutes=exp)).timestamp())
+    payload["iat"] = int(now.timestamp())
+    payload["jti"] = str(uuid.uuid4())
     payload["type"] = "operator"
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
@@ -60,6 +65,23 @@ def generate_enrollment_secret() -> str:
 
 def hash_enrollment_secret(secret: str) -> str:
     return hashlib.sha256(secret.encode()).hexdigest()
+
+
+# ── TOTP (MFA) ───────────────────────────────────────────────────────────────
+
+def generate_totp_secret() -> str:
+    """Generate a new base32 TOTP secret."""
+    return pyotp.random_base32()
+
+
+def get_totp_uri(secret: str, email: str) -> str:
+    """Return an otpauth:// URI for QR code generation."""
+    return pyotp.TOTP(secret).provisioning_uri(email, issuer_name="TekNaBox")
+
+
+def verify_totp(secret: str, code: str) -> bool:
+    """Verify a 6-digit TOTP code. Allows 1-step clock drift."""
+    return pyotp.TOTP(secret).verify(code, valid_window=1)
 
 
 # ── Artifact signing ─────────────────────────────────────────────────────────

@@ -3,13 +3,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: mspplatform
-      POSTGRES_USER: mspuser
+      POSTGRES_DB: teknabox
+      POSTGRES_USER: teknabox
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mspuser -d mspplatform"]
+      test: ["CMD-SHELL", "pg_isready -U teknabox -d teknabox"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -35,7 +35,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://mspuser:${DB_PASSWORD}@db:5432/mspplatform
+      DATABASE_URL: postgresql+asyncpg://teknabox:${DB_PASSWORD}@db:5432/teknabox
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
       DEVICE_TOKEN_SECRET: ${DEVICE_TOKEN_SECRET}
@@ -59,7 +59,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://mspuser:${DB_PASSWORD}@db:5432/mspplatform
+      DATABASE_URL: postgresql+asyncpg://teknabox:${DB_PASSWORD}@db:5432/teknabox
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
       DEVICE_TOKEN_SECRET: ${DEVICE_TOKEN_SECRET}

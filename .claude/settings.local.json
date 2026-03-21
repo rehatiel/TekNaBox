@@ -11,7 +11,12 @@
       "Bash(find:*)",
       "Bash(cd:*)",
       "Bash(docker ps:*)",
-      "Bash(docker version:*)"
+      "Bash(docker version:*)",
+      "Bash(grep -r migration d:/Projects/teknabox/msp-platform-v2/msp-server/app/main.py --include=*.py -n)",
+      "Bash(npm install:*)",
+      "Bash(git mv:*)",
+      "Bash(grep -r \"msp-platform\\\\|msp-agent-v2\\\\|msp-server\\\\|msp-ui\\\\|mspplatform\\\\|mspuser\" d:/Projects/teknabox --include=*.py --include=*.js --include=*.jsx --include=*.yml --include=*.yaml --include=*.json --include=*.sh --include=*.md -l)",
+      "Bash(grep -r \"msp-platform\\\\|msp-agent-v2\\\\|msp-server\\\\|msp-ui\\\\|mspplatform\\\\|mspuser\" d:/Projects/teknabox --include=*.py --include=*.js --include=*.jsx --include=*.yml --include=*.yaml --include=*.json --include=*.sh --include=*.md)"
     ]
   }
 }

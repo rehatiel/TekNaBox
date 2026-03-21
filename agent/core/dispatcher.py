@@ -98,6 +98,18 @@ async def dispatch(
     return None
 
 
+# Pre-import cache — populated on first use per task type
+_MODULE_CACHE: dict = {}
+
+
+def _get_task_module(handler_module: str):
+    """Return cached module, importing once on first call."""
+    if handler_module not in _MODULE_CACHE:
+        import importlib
+        _MODULE_CACHE[handler_module] = importlib.import_module(handler_module)
+    return _MODULE_CACHE[handler_module]
+
+
 async def _handle_task(
     msg: dict,
     config: "AgentConfig",
@@ -121,8 +133,7 @@ async def _handle_task(
         }
 
     try:
-        import importlib
-        mod   = importlib.import_module(handler_module)
+        mod = _get_task_module(handler_module)
         start = time.time()
 
         result = await asyncio.wait_for(mod.run(payload), timeout=timeout)
@@ -155,15 +166,28 @@ async def _handle_task(
         }
 
 
+_CONFIG_SCHEMA = {
+    "heartbeat_interval": (int,   lambda v: max(5, min(v, 3600))),
+    "log_level":          (str,   lambda v: v.upper() if v.upper() in ("DEBUG","INFO","WARNING","ERROR") else "INFO"),
+    "reconnect_min":      (float, lambda v: max(1.0, min(v, 60.0))),
+    "reconnect_max":      (float, lambda v: max(60.0, min(v, 3600.0))),
+}
+
 async def _handle_config_update(msg: dict, config: "AgentConfig") -> Optional[dict]:
     from core.config import save_config
     changes = msg.get("config", {})
-    allowed = {"heartbeat_interval", "log_level", "reconnect_min", "reconnect_max"}
     applied = {}
     for key, value in changes.items():
-        if key in allowed:
-            setattr(config, key, value)
-            applied[key] = value
+        schema = _CONFIG_SCHEMA.get(key)
+        if not schema:
+            continue
+        cast, clamp = schema
+        try:
+            coerced = clamp(cast(value))
+            setattr(config, key, coerced)
+            applied[key] = coerced
+        except (ValueError, TypeError) as e:
+            logger.warning(f"config_update_rejected key={key} value={value!r} reason={e}")
     if applied:
         save_config(config)
         logger.info(f"Config updated: {applied}")

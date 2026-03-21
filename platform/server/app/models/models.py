@@ -184,6 +184,10 @@ class Device(Base):
     last_disk_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     last_sysinfo_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Operator metadata
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -236,6 +240,8 @@ class Task(Base):
     __table_args__ = (
         Index("ix_task_device_status", "device_id", "status"),
         Index("ix_task_msp_id", "msp_id"),
+        Index("ix_task_type_status", "task_type", "status"),
+        Index("ix_task_queued_at", "queued_at"),
     )
 
 
@@ -259,6 +265,7 @@ class Telemetry(Base):
     __table_args__ = (
         Index("ix_telemetry_device_received", "device_id", "received_at"),
         Index("ix_telemetry_msp_type", "msp_id", "telemetry_type"),
+        Index("ix_telemetry_device_type", "device_id", "telemetry_type"),
     )
 
 
@@ -431,6 +438,10 @@ class Operator(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
+    # MFA / TOTP
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    totp_secret: Mapped[Optional[str]] = mapped_column(String(64))
+
     msp: Mapped[Optional["MSPOrganization"]] = relationship(back_populates="operators")
 
 
@@ -460,7 +471,6 @@ class AuditLog(Base):
     __table_args__ = (
         Index("ix_audit_msp_created", "msp_id", "created_at"),
         Index("ix_audit_action", "action"),
-        # Prevent deletions/updates via DB rule (applied in migration)
     )
 
 

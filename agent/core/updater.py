@@ -4,13 +4,13 @@ Atomic self-update mechanism.
 Update flow:
   1. Server sends update_available message
   2. Agent reports status: downloading
-  3. Downloads artifact to /tmp/msp-agent.new
+  3. Downloads artifact to /tmp/teknabox-agent.new
   4. Verifies SHA256
   5. Reports status: applying
   6. Copies current agent to AGENT_BACKUP_PATH (persistent rollback)
-  7. Atomically replaces /usr/local/bin/msp-agent
+  7. Atomically replaces /usr/local/bin/teknabox-agent
   8. Reports status: completed
-  9. Restarts via systemd (systemctl restart msp-agent)
+  9. Restarts via systemd (systemctl restart teknabox-agent)
 
 On any failure, rolls back and reports status: rolled_back
 """
@@ -32,13 +32,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-AGENT_INSTALL_PATH  = os.environ.get("MSP_AGENT_PATH", "/usr/local/bin/msp-agent")
+AGENT_INSTALL_PATH  = os.environ.get("TEKNABOX_AGENT_PATH", "/usr/local/bin/teknabox-agent")
 # Persistent backup — survives reboots unlike /tmp
-AGENT_BACKUP_PATH   = "/opt/msp-agent/msp-agent.bak"
-# Download to /opt/msp-agent (same filesystem as install target).
+AGENT_BACKUP_PATH   = "/opt/teknabox-agent/teknabox-agent.bak"
+# Download to /opt/teknabox-agent (same filesystem as install target).
 # /tmp would fail with EXDEV on os.replace() because PrivateTmp=yes in the
 # systemd service makes /tmp a separate tmpfs mount.
-AGENT_DOWNLOAD_PATH = "/opt/msp-agent/msp-agent.new"
+AGENT_DOWNLOAD_PATH = "/opt/teknabox-agent/teknabox-agent.new"
 
 
 async def handle_update_available(
@@ -166,7 +166,7 @@ def _rollback() -> None:
 def _restart_service() -> None:
     try:
         subprocess.run(
-            ["systemctl", "restart", "msp-agent"],
+            ["systemctl", "restart", "teknabox-agent"],
             check=True, timeout=10,
         )
     except Exception as e:

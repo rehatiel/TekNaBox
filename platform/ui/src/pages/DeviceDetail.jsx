@@ -545,12 +545,24 @@ export default function DeviceDetail() {
   const [showActions, setShowActions]   = useState(false)
   const [error, setError]               = useState('')
 
+  // Notes + tags
+  const [notes, setNotes]           = useState('')
+  const [tagInput, setTagInput]     = useState('')
+  const [tags, setTags]             = useState([])
+  const [savingMeta, setSavingMeta] = useState(false)
+  const [metaSaved, setMetaSaved]   = useState(false)
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const [devices, t] = await Promise.all([api.getDevices(), api.getTasks(id)])
-      setDevice(devices.find(d => d.id === id))
+      const d = devices.find(d => d.id === id)
+      setDevice(d)
       setTasks(t)
+      if (d) {
+        setNotes(d.notes || '')
+        setTags(d.tags || [])
+      }
     } catch (e) { setError(e.message) }
     finally { setLoading(false) }
   }, [id])
@@ -568,6 +580,26 @@ export default function DeviceDetail() {
   const handleDelete = async () => {
     try { await api.deleteDevice(id); navigate('/devices') }
     catch (e) { setError(e.message) }
+  }
+
+  const saveMeta = async () => {
+    setSavingMeta(true)
+    try {
+      const updated = await api.updateDevice(id, { notes, tags })
+      setDevice(d => ({ ...d, notes: updated.notes, tags: updated.tags }))
+      setMetaSaved(true)
+      setTimeout(() => setMetaSaved(false), 2000)
+    } catch (e) { setError(e.message) }
+    finally { setSavingMeta(false) }
+  }
+
+  const addTag = (e) => {
+    if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
+      e.preventDefault()
+      const t = tagInput.trim().replace(/,$/, '')
+      if (t && !tags.includes(t)) setTags(ts => [...ts, t])
+      setTagInput('')
+    }
   }
 
   const apiBase = import.meta.env.VITE_API_BASE || import.meta.env.VITE_WS_BASE || ''
@@ -728,6 +760,51 @@ export default function DeviceDetail() {
         </div>
       </div>
 
+      {/* ── Notes + Tags ── */}
+      <div className="card p-4 mb-4">
+        <h3 className="label mb-3">Notes &amp; Tags</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <label className="label mb-1">Notes</label>
+            <textarea
+              className="input resize-none text-sm font-mono"
+              rows={4}
+              placeholder="Free-form notes about this device…"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label mb-1">Tags</label>
+            <div className="flex flex-wrap gap-1.5 mb-2 min-h-[2rem]">
+              {tags.map(tag => (
+                <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-dim border border-cyan-DEFAULT/30 text-xs text-cyan-DEFAULT font-mono">
+                  {tag}
+                  <button onClick={() => setTags(ts => ts.filter(t => t !== tag))} className="text-cyan-muted hover:text-red-DEFAULT transition-colors leading-none">×</button>
+                </span>
+              ))}
+            </div>
+            <input
+              className="input text-sm"
+              placeholder="Type a tag and press Enter or comma…"
+              value={tagInput}
+              onChange={e => setTagInput(e.target.value)}
+              onKeyDown={addTag}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end mt-3">
+          <button
+            onClick={saveMeta}
+            disabled={savingMeta}
+            className="btn-primary flex items-center gap-1.5 text-xs"
+          >
+            {savingMeta ? <Spinner className="w-3.5 h-3.5" /> : metaSaved ? <Check className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+            {metaSaved ? 'Saved' : 'Save'}
+          </button>
+        </div>
+      </div>
+
       {/* ── Run task panel ── */}
       {notRevoked && (
         <div className="mb-4">
@@ -823,7 +900,7 @@ export default function DeviceDetail() {
             <label className="label">New Enrollment Secret</label>
             <CodeBlock>{resetResult.enrollment_secret}</CodeBlock>
             <p className="text-xs text-slate-600 mt-2">Run on the target machine:</p>
-            <CodeBlock>{`curl -fsSL ${(import.meta.env.VITE_API_BASE || (import.meta.env.VITE_WS_BASE || '').replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://')  )}/v1/agent/bootstrap | sudo bash -s -- --secret ${resetResult.enrollment_secret}`}</CodeBlock>
+            <CodeBlock>{`curl -fsSL ${resetResult.bootstrap_url} | sudo bash -s -- --secret ${resetResult.enrollment_secret}`}</CodeBlock>
           </div>
           <button onClick={() => setResetResult(null)} className="btn-primary w-full mt-4">Done</button>
         </Modal>

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MSP Platform - End-to-End API Test Flow
+TekNaBox - End-to-End API Test Flow
 ========================================
 Runs a full scenario against a live running server:
 
@@ -94,7 +94,7 @@ async def run(base: str):
     ws_base = base.replace("http://", "ws://").replace("https://", "wss://")
 
     console.print(Panel.fit(
-        f"[bold]MSP Platform — End-to-End Test[/bold]\n[dim]Target: {base}[/dim]",
+        f"[bold]TekNaBox — End-to-End Test[/bold]\n[dim]Target: {base}[/dim]",
         border_style="cyan"
     ))
 
@@ -493,7 +493,7 @@ async def run(base: str):
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="MSP Platform E2E test")
+    parser = argparse.ArgumentParser(description="TekNaBox E2E test")
     parser.add_argument("--base-url", default=DEFAULT_BASE, help="Server base URL")
     args = parser.parse_args()
 

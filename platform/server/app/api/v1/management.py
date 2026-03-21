@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timezone  # noqa: F401 (timezone used in network endpoints)
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
+from fastapi.security import HTTPAuthorizationCredentials
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -17,7 +18,7 @@ from sqlalchemy import select, and_, update as sql_update
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.auth import get_current_operator, require_role, get_current_device
+from app.core.auth import get_current_operator, require_role, get_current_device, bearer
 from app.core.security import (
     generate_enrollment_secret, hash_enrollment_secret,
     hash_password, create_operator_token, verify_password,
@@ -90,7 +91,12 @@ class LoginResponse(BaseModel):
     role: str
 
 
-@router.post("/auth/login", response_model=LoginResponse, tags=["auth"])
+class MFAChallengeResponse(BaseModel):
+    mfa_required: bool = True
+    mfa_token: str
+
+
+@router.post("/auth/login", tags=["auth"])
 @limiter.limit("10/minute")  # brute-force protection
 async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Operator).where(Operator.email == body.email))
@@ -102,6 +108,13 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     password_ok = verify_password(body.password, stored_hash)
     if not op or not op.is_active or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # If MFA is enabled, issue a short-lived challenge token instead of the real token
+    if op.mfa_enabled:
+        mfa_token = _secrets.token_urlsafe(32)
+        r = _get_redis()
+        await r.set(f"mfa_challenge:{mfa_token}", op.id, ex=300)  # 5 min TTL
+        return MFAChallengeResponse(mfa_token=mfa_token)
 
     op.last_login_at = datetime.now(timezone.utc)
     await write_audit(
@@ -115,6 +128,67 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     return LoginResponse(access_token=token, operator_id=op.id, role=op.role)
 
 
+class MFAConfirmRequest(BaseModel):
+    mfa_token: str
+    code: str
+
+
+@router.post("/auth/mfa/confirm", response_model=LoginResponse, tags=["auth"])
+@limiter.limit("10/minute")
+async def mfa_confirm(body: MFAConfirmRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """Complete MFA login by verifying the TOTP code against the mfa_token challenge."""
+    from app.core.security import verify_totp
+    r = _get_redis()
+    key = f"mfa_challenge:{body.mfa_token}"
+    operator_id = await r.get(key)
+    if not operator_id:
+        raise HTTPException(status_code=401, detail="Invalid or expired MFA challenge")
+    if isinstance(operator_id, bytes):
+        operator_id = operator_id.decode()
+
+    op = (await db.execute(select(Operator).where(Operator.id == operator_id))).scalar_one_or_none()
+    if not op or not op.is_active or not op.mfa_enabled or not op.totp_secret:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not verify_totp(op.totp_secret, body.code):
+        raise HTTPException(status_code=401, detail="Invalid authenticator code")
+
+    # Consume the challenge — single use
+    await r.delete(key)
+
+    op.last_login_at = datetime.now(timezone.utc)
+    await write_audit(
+        db, AuditAction.OPERATOR_LOGIN,
+        msp_id=op.msp_id, operator_id=op.id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.commit()
+
+    token = create_operator_token({"sub": op.id, "msp_id": op.msp_id, "role": op.role})
+    return LoginResponse(access_token=token, operator_id=op.id, role=op.role)
+
+
+@router.post("/auth/logout", tags=["auth"])
+async def logout(
+    creds: HTTPAuthorizationCredentials = Depends(bearer),
+    operator: Operator = Depends(get_current_operator),
+):
+    """Revoke the current session token by adding its JTI to the Redis blocklist."""
+    from app.core.security import decode_operator_token
+    try:
+        payload = decode_operator_token(creds.credentials)
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if jti and exp:
+            import time
+            ttl = max(1, int(exp - time.time()))
+            r = _get_redis()
+            await r.set(f"blocklist:jti:{jti}", "1", ex=ttl)
+    except Exception:
+        pass  # token already expired or malformed — treat as logged out
+    return {"status": "logged_out"}
+
+
 # ── Devices ───────────────────────────────────────────────────────────────────
 
 class CreateDeviceRequest(BaseModel):
@@ -126,11 +200,13 @@ class CreateDeviceRequest(BaseModel):
 class CreateDeviceResponse(BaseModel):
     device_id: str
     enrollment_secret: str  # shown once, never stored in plaintext
+    bootstrap_url: str      # full API URL for the one-liner install command
 
 
 @router.post("/devices", response_model=CreateDeviceResponse)
 async def create_device(
     body: CreateDeviceRequest,
+    request: Request,
     operator: Operator = Depends(get_current_operator),
     db: AsyncSession = Depends(get_db),
 ):
@@ -161,7 +237,12 @@ async def create_device(
         device_id=device.id, detail={"name": body.name, "site_id": body.site_id},
     )
     await db.commit()
-    return CreateDeviceResponse(device_id=device.id, enrollment_secret=secret)
+
+    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host   = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    bootstrap_url = f"{scheme}://{host}/v1/agent/bootstrap"
+
+    return CreateDeviceResponse(device_id=device.id, enrollment_secret=secret, bootstrap_url=bootstrap_url)
 
 
 @router.get("/devices")
@@ -213,6 +294,7 @@ async def revoke_device(
 @router.post("/devices/{device_id}/reset")
 async def reset_device(
     device_id: str,
+    request: Request,
     reason: Optional[str] = None,
     operator: Operator = Depends(require_role(OperatorRole.MSP_ADMIN, OperatorRole.MSP_OPERATOR)),
     db: AsyncSession = Depends(get_db),
@@ -250,10 +332,37 @@ async def reset_device(
     )
     await db.commit()
 
+    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host   = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    bootstrap_url = f"{scheme}://{host}/v1/agent/bootstrap"
+
     return {
         "status": "reset",
         "enrollment_secret": secret,  # shown once — operator must copy this
+        "bootstrap_url": bootstrap_url,
     }
+
+
+class UpdateDeviceRequest(BaseModel):
+    notes: Optional[str] = None
+    tags: Optional[list[str]] = None
+
+
+@router.patch("/devices/{device_id}")
+async def update_device(
+    device_id: str,
+    body: UpdateDeviceRequest,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update device notes and/or tags."""
+    device = await _get_device(db, device_id, operator.msp_id)
+    if body.notes is not None:
+        device.notes = body.notes or None
+    if body.tags is not None:
+        device.tags = [t.strip() for t in body.tags if t.strip()]
+    await db.commit()
+    return _device_dict(device)
 
 
 @router.delete("/devices/{device_id}")
@@ -755,6 +864,18 @@ async def list_discovered_devices(
     return [_discovered_device_dict(d) for d in rows]
 
 
+async def _get_discovered_device(db: AsyncSession, msp_id: str, mac: str) -> "DiscoveredDevice":
+    """Fetch a DiscoveredDevice by (msp_id, mac), raising 404 if absent."""
+    device = (await db.execute(
+        select(DiscoveredDevice).where(
+            and_(DiscoveredDevice.msp_id == msp_id, DiscoveredDevice.mac == mac.lower().strip())
+        )
+    )).scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    return device
+
+
 @router.patch("/network/discovered-devices/{mac}/known")
 async def set_device_known(
     mac: str,
@@ -762,15 +883,7 @@ async def set_device_known(
     db: AsyncSession = Depends(get_db),
 ):
     """Toggle a discovered device's known status."""
-    mac = mac.lower().strip()
-    device = (await db.execute(
-        select(DiscoveredDevice).where(
-            and_(DiscoveredDevice.msp_id == operator.msp_id,
-                 DiscoveredDevice.mac == mac)
-        )
-    )).scalar_one_or_none()
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+    device = await _get_discovered_device(db, operator.msp_id, mac)
     device.known = not device.known
     await db.commit()
     return _discovered_device_dict(device)
@@ -784,15 +897,7 @@ async def set_device_label(
     db: AsyncSession = Depends(get_db),
 ):
     """Set an operator label on a discovered device."""
-    mac = mac.lower().strip()
-    device = (await db.execute(
-        select(DiscoveredDevice).where(
-            and_(DiscoveredDevice.msp_id == operator.msp_id,
-                 DiscoveredDevice.mac == mac)
-        )
-    )).scalar_one_or_none()
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+    device = await _get_discovered_device(db, operator.msp_id, mac)
     device.label = body.get("label") or None
     await db.commit()
     return _discovered_device_dict(device)
@@ -805,15 +910,7 @@ async def delete_discovered_device(
     db: AsyncSession = Depends(get_db),
 ):
     """Remove a device from the history."""
-    mac = mac.lower().strip()
-    device = (await db.execute(
-        select(DiscoveredDevice).where(
-            and_(DiscoveredDevice.msp_id == operator.msp_id,
-                 DiscoveredDevice.mac == mac)
-        )
-    )).scalar_one_or_none()
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+    device = await _get_discovered_device(db, operator.msp_id, mac)
     await db.delete(device)
     await db.commit()
     return {"ok": True}
@@ -831,15 +928,7 @@ async def update_device_ports(
     db: AsyncSession = Depends(get_db),
 ):
     """Store open ports discovered by a port scan on a discovered device."""
-    mac = mac.lower().strip()
-    device = (await db.execute(
-        select(DiscoveredDevice).where(
-            and_(DiscoveredDevice.msp_id == operator.msp_id,
-                 DiscoveredDevice.mac == mac)
-        )
-    )).scalar_one_or_none()
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+    device = await _get_discovered_device(db, operator.msp_id, mac)
     device.open_ports = sorted(body.open_ports)
     device.ports_scanned_at = datetime.now(timezone.utc)
     await db.commit()
@@ -880,15 +969,7 @@ async def get_discovered_device_detail(
     db: AsyncSession = Depends(get_db),
 ):
     """Get a single discovered device with its full scan history."""
-    mac = mac.lower().strip()
-    device = (await db.execute(
-        select(DiscoveredDevice).where(
-            and_(DiscoveredDevice.msp_id == operator.msp_id,
-                 DiscoveredDevice.mac == mac)
-        )
-    )).scalar_one_or_none()
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+    device = await _get_discovered_device(db, operator.msp_id, mac)
 
     scans = (await db.execute(
         select(DeviceScanRecord)
@@ -920,15 +1001,7 @@ async def save_scan_record(
     db: AsyncSession = Depends(get_db),
 ):
     """Save a completed (or failed) scan result for a discovered device."""
-    mac = mac.lower().strip()
-    device = (await db.execute(
-        select(DiscoveredDevice).where(
-            and_(DiscoveredDevice.msp_id == operator.msp_id,
-                 DiscoveredDevice.mac == mac)
-        )
-    )).scalar_one_or_none()
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+    device = await _get_discovered_device(db, operator.msp_id, mac)
 
     record = DeviceScanRecord(
         msp_id=operator.msp_id,
@@ -966,15 +1039,7 @@ async def update_device_notes(
     db: AsyncSession = Depends(get_db),
 ):
     """Save operator notes on a discovered device."""
-    mac = mac.lower().strip()
-    device = (await db.execute(
-        select(DiscoveredDevice).where(
-            and_(DiscoveredDevice.msp_id == operator.msp_id,
-                 DiscoveredDevice.mac == mac)
-        )
-    )).scalar_one_or_none()
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+    device = await _get_discovered_device(db, operator.msp_id, mac)
     device.notes = body.notes
     await db.commit()
     return _discovered_device_dict(device)
@@ -1017,6 +1082,8 @@ def _device_dict(d: Device) -> dict:
         "last_mem_pct": d.last_mem_pct,
         "last_disk_pct": d.last_disk_pct,
         "last_sysinfo_at": d.last_sysinfo_at,
+        "notes": d.notes,
+        "tags": d.tags or [],
     }
 
 
@@ -1044,7 +1111,7 @@ async def agent_bootstrap(request: Request):
     server_url = f"{scheme}://{host}"
 
     script = f"""#!/bin/bash
-# MSP Agent One-Line Installer
+# TekNaBox Agent One-Line Installer
 # Generated by {server_url}
 #
 # Usage:
@@ -1056,14 +1123,14 @@ SERVER_URL="{server_url}"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
-printf '\\n[INFO] Downloading MSP agent from %s ...\\n' "$SERVER_URL"
+printf '\\n[INFO] Downloading TekNaBox agent from %s ...\\n' "$SERVER_URL"
 curl -fsSL "$SERVER_URL/v1/agent/package" -o "$WORK/agent.tar.gz"
 
 printf '[INFO] Extracting...\\n'
 tar -xzf "$WORK/agent.tar.gz" -C "$WORK"
 
 printf '[INFO] Running installer...\\n'
-exec bash "$WORK/msp-agent/install.sh" --server "$SERVER_URL" "$@"
+exec bash "$WORK/teknabox-agent/install.sh" --server "$SERVER_URL" "$@"
 """
     from fastapi.responses import Response
     return Response(content=script, media_type="text/plain")
@@ -1085,7 +1152,7 @@ async def agent_package():
             status_code=503,
             detail=(
                 "Agent bundle not available. "
-                "Ensure msp-agent-v2 exists on the server alongside msp-platform-v2, "
+                "Ensure the agent directory is mounted at /agent-bundle in the api container, "
                 "then restart the api container."
             ),
         )
@@ -1098,7 +1165,7 @@ async def agent_package():
                 if fname.endswith(".pyc"):
                     continue
                 fpath   = os.path.join(root, fname)
-                arcname = os.path.join("msp-agent", os.path.relpath(fpath, bundle_path))
+                arcname = os.path.join("teknabox-agent", os.path.relpath(fpath, bundle_path))
                 tar.add(fpath, arcname=arcname)
     buf.seek(0)
 
@@ -1106,7 +1173,7 @@ async def agent_package():
     return Response(
         content=buf.read(),
         media_type="application/gzip",
-        headers={"Content-Disposition": "attachment; filename=msp-agent.tar.gz"},
+        headers={"Content-Disposition": "attachment; filename=teknabox-agent.tar.gz"},
     )
 
 

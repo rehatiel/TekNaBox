@@ -1,9 +1,10 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { useTheme } from '../hooks/useTheme'
 import {
   LayoutDashboard, Monitor, CheckSquare, Users,
   Building2, MapPin, PackageOpen, ScrollText,
-  LogOut, Radio, ChevronRight, Activity, UserCog, ShieldAlert, ShieldCheck, Wifi, FileText, BookOpen, Network, BookMarked, Wrench, History
+  LogOut, Radio, ChevronRight, Activity, UserCog, ShieldAlert, ShieldCheck, Wifi, FileText, BookOpen, Network, BookMarked, Wrench, History, Globe, Sun, Moon
 } from 'lucide-react'
 
 // Shown to all authenticated users
@@ -17,6 +18,7 @@ const NAV = [
   { to: '/network',         icon: Network,  label: 'Network Discovery' },
   { to: '/network-history', icon: History,  label: 'Device History' },
   { to: '/network-tools',   icon: Wrench,   label: 'Network Tools' },
+  { to: '/http-monitor',   icon: Globe,    label: 'HTTP Monitor' },
   { to: '/wireless',   icon: Radio,           label: 'Wireless Survey' },
   { to: '/snmp',       icon: Wifi,            label: 'SNMP' },
   { to: '/ad-report',  icon: BookMarked,      label: 'AD Report' },
@@ -40,11 +42,12 @@ const SUPER_NAV = [
 
 export default function Sidebar() {
   const { operator, logout, isSuper } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const isAdmin = isSuper || operator?.role === 'msp_admin'
   const navigate = useNavigate()
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     navigate('/login')
   }
 
@@ -56,7 +59,7 @@ export default function Sidebar() {
           <div className="w-7 h-7 rounded bg-cyan-DEFAULT flex items-center justify-center">
             <Radio className="w-4 h-4 text-bg-base" />
           </div>
-          <span className="font-display font-700 text-slate-100 tracking-tight">MSP Command</span>
+          <span className="font-display font-700 text-slate-100 tracking-tight">TekNaBox</span>
         </div>
       </div>
 
@@ -154,6 +157,18 @@ export default function Sidebar() {
             <p className="text-xs text-slate-300 truncate">{operator?.email}</p>
             <p className="text-xs text-slate-600 font-mono">{operator?.role}</p>
           </div>
+        </div>
+        <div className="flex gap-1 mb-1">
+          <button
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-sm text-slate-600 hover:text-slate-300 hover:bg-bg-elevated transition-colors duration-150"
+          >
+            {theme === 'dark'
+              ? <><Sun className="w-3.5 h-3.5" /><span className="text-xs">Light</span></>
+              : <><Moon className="w-3.5 h-3.5" /><span className="text-xs">Dark</span></>
+            }
+          </button>
         </div>
         <button
           onClick={handleLogout}

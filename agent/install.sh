@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# MSP Agent Installer
+# TekNaBox Agent Installer
 # Supports: Raspberry Pi OS, Debian, Ubuntu (amd64 / arm64 / armv7 / armv6)
 # =============================================================================
 # Usage:
@@ -38,7 +38,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -z "$SERVER_URL" ]]        && error "--server is required (e.g. https://yourserver.com)"
-[[ -z "$ENROLLMENT_SECRET" ]] && error "--secret is required (get this from the MSP portal)"
+[[ -z "$ENROLLMENT_SECRET" ]] && error "--secret is required (get this from the TekNaBox portal)"
 [[ $EUID -ne 0 ]]             && error "This script must be run as root (use sudo)"
 
 # Derive API base and WebSocket URL
@@ -46,7 +46,7 @@ API_BASE="${SERVER_URL}"
 WS_URL=$(echo "$SERVER_URL" | sed 's/^http/ws/')
 
 info "======================================================"
-info " MSP Agent Installer"
+info " TekNaBox Agent Installer"
 info " Server:  $SERVER_URL"
 info " Version: $VERSION"
 info "======================================================"
@@ -253,31 +253,31 @@ if [ -f /etc/snmp/snmp.conf ]; then
     sed -i 's/^mibs :#/mibs :/' /etc/snmp/snmp.conf 2>/dev/null || true
 fi
 
-# Allow tshark to capture without root (adds msp-agent to wireshark group)
+# Allow tshark to capture without root (adds teknabox-agent to wireshark group)
 if getent group wireshark > /dev/null 2>&1; then
-    usermod -aG wireshark msp-agent 2>/dev/null || true
+    usermod -aG wireshark teknabox-agent 2>/dev/null || true
 fi
 
 # ── Create user ───────────────────────────────────────────────────────────────
-info "Creating msp-agent system user..."
-if ! id -u msp-agent &>/dev/null; then
-    useradd --system --no-create-home --shell /usr/sbin/nologin msp-agent
+info "Creating teknabox-agent system user..."
+if ! id -u teknabox-agent &>/dev/null; then
+    useradd --system --no-create-home --shell /usr/sbin/nologin teknabox-agent
 fi
 
 # ── Directory structure ───────────────────────────────────────────────────────
 info "Creating directories..."
-mkdir -p /etc/msp-agent
-mkdir -p /var/log/msp-agent
-mkdir -p /opt/msp-agent
+mkdir -p /etc/teknabox-agent
+mkdir -p /var/log/teknabox-agent
+mkdir -p /opt/teknabox-agent
 
-chown root:msp-agent /etc/msp-agent
-chmod 770 /etc/msp-agent          # group-writable so agent can save config.json.tmp
+chown root:teknabox-agent /etc/teknabox-agent
+chmod 770 /etc/teknabox-agent          # group-writable so agent can save config.json.tmp
 
-chown msp-agent:msp-agent /var/log/msp-agent
-chmod 755 /var/log/msp-agent
+chown teknabox-agent:teknabox-agent /var/log/teknabox-agent
+chmod 755 /var/log/teknabox-agent
 
-chown msp-agent:msp-agent /opt/msp-agent
-chmod 755 /opt/msp-agent
+chown teknabox-agent:teknabox-agent /opt/teknabox-agent
+chmod 755 /opt/teknabox-agent
 
 # ── Get hardware ID ───────────────────────────────────────────────────────────
 # Prefer Pi CPU serial; fall back to hostname + MAC of first active non-loopback interface
@@ -298,7 +298,7 @@ info "Hardware ID: $HARDWARE_ID"
 
 # ── Write config ──────────────────────────────────────────────────────────────
 info "Writing configuration..."
-cat > /etc/msp-agent/config.json << EOF
+cat > /etc/teknabox-agent/config.json << EOF
 {
   "server_url": "$WS_URL",
   "api_base": "$API_BASE",
@@ -312,70 +312,70 @@ cat > /etc/msp-agent/config.json << EOF
   "reconnect_min": 5,
   "reconnect_max": 300,
   "log_level": "$LOG_LEVEL",
-  "log_file": "/var/log/msp-agent/agent.log"
+  "log_file": "/var/log/teknabox-agent/agent.log"
 }
 EOF
 
-chown root:msp-agent /etc/msp-agent/config.json
-chmod 660 /etc/msp-agent/config.json  # group-writable so agent can update tokens
+chown root:teknabox-agent /etc/teknabox-agent/config.json
+chmod 660 /etc/teknabox-agent/config.json  # group-writable so agent can update tokens
 
 # ── Stop existing service ─────────────────────────────────────────────────────
-if systemctl is-active --quiet msp-agent 2>/dev/null; then
-    info "Stopping existing msp-agent service..."
-    systemctl stop msp-agent
+if systemctl is-active --quiet teknabox-agent 2>/dev/null; then
+    info "Stopping existing teknabox-agent service..."
+    systemctl stop teknabox-agent
     # Wait up to 10 s for the process to exit cleanly
     for _i in $(seq 1 10); do
-        systemctl is-active --quiet msp-agent 2>/dev/null || break
+        systemctl is-active --quiet teknabox-agent 2>/dev/null || break
         sleep 1
     done
-    if systemctl is-active --quiet msp-agent 2>/dev/null; then
+    if systemctl is-active --quiet teknabox-agent 2>/dev/null; then
         warn "Service did not stop cleanly — sending SIGKILL"
-        systemctl kill --signal=SIGKILL msp-agent 2>/dev/null || true
+        systemctl kill --signal=SIGKILL teknabox-agent 2>/dev/null || true
         sleep 1
     fi
     info "Previous service stopped ✓"
-elif systemctl list-units --all --no-pager 2>/dev/null | grep -q 'msp-agent.service'; then
-    info "msp-agent service present but not running — continuing"
+elif systemctl list-units --all --no-pager 2>/dev/null | grep -q 'teknabox-agent.service'; then
+    info "teknabox-agent service present but not running — continuing"
 fi
 
 # ── Install agent files ───────────────────────────────────────────────────────
 info "Installing agent files..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-cp "$SCRIPT_DIR/agent.py" /opt/msp-agent/agent.py
+cp "$SCRIPT_DIR/agent.py" /opt/teknabox-agent/agent.py
 
 # Remove and replace — prevents stale files from old installs persisting
-rm -rf /opt/msp-agent/core  && cp -r "$SCRIPT_DIR/core"  /opt/msp-agent/core
-rm -rf /opt/msp-agent/tasks && cp -r "$SCRIPT_DIR/tasks" /opt/msp-agent/tasks
+rm -rf /opt/teknabox-agent/core  && cp -r "$SCRIPT_DIR/core"  /opt/teknabox-agent/core
+rm -rf /opt/teknabox-agent/tasks && cp -r "$SCRIPT_DIR/tasks" /opt/teknabox-agent/tasks
 
-chown -R msp-agent:msp-agent /opt/msp-agent
-chmod -R 755 /opt/msp-agent
+chown -R teknabox-agent:teknabox-agent /opt/teknabox-agent
+chmod -R 755 /opt/teknabox-agent
 
 # ── Create launcher binary ────────────────────────────────────────────────────
 info "Creating launcher..."
-cat > /usr/local/bin/msp-agent << 'LAUNCHER'
+cat > /usr/local/bin/teknabox-agent << 'LAUNCHER'
 #!/bin/bash
-exec python3 /opt/msp-agent/agent.py "$@"
+exec python3 /opt/teknabox-agent/agent.py "$@"
 LAUNCHER
 
-chmod +x /usr/local/bin/msp-agent
+chmod +x /usr/local/bin/teknabox-agent
 
 # ── Install systemd service ───────────────────────────────────────────────────
 info "Installing systemd service..."
-cp "$SCRIPT_DIR/msp-agent.service" /etc/systemd/system/msp-agent.service
+cp "$SCRIPT_DIR/teknabox-agent.service" /etc/systemd/system/teknabox-agent.service
 
 # Patch MemoryMax based on detected hardware RAM
 if [[ -n "$SERVICE_MEMORY_MAX" ]]; then
     sed -i "s|^MemoryMax=.*|MemoryMax=${SERVICE_MEMORY_MAX}|" \
-        /etc/systemd/system/msp-agent.service
+        /etc/systemd/system/teknabox-agent.service
 else
     # No limit — comment out the line rather than leaving a stale value
     sed -i "s|^MemoryMax=.*|# MemoryMax= (not set — sufficient RAM detected)|" \
-        /etc/systemd/system/msp-agent.service
+        /etc/systemd/system/teknabox-agent.service
 fi
 
 systemctl daemon-reload
-systemctl enable msp-agent
+systemctl enable teknabox-agent
 
 # ── Verify system binaries ────────────────────────────────────────────────────
 info "Verifying installed tools..."
@@ -459,17 +459,17 @@ fi
 
 # ── Start service ─────────────────────────────────────────────────────────────
 info "Starting MSP agent..."
-systemctl start msp-agent
+systemctl start teknabox-agent
 
 sleep 3
-if systemctl is-active --quiet msp-agent; then
+if systemctl is-active --quiet teknabox-agent; then
     info "======================================================"
     info " Agent installed and running successfully!"
     info ""
     info " Useful commands:"
-    info "   systemctl status msp-agent"
-    info "   journalctl -u msp-agent -f"
-    info "   tail -f /var/log/msp-agent/agent.log"
+    info "   systemctl status teknabox-agent"
+    info "   journalctl -u teknabox-agent -f"
+    info "   tail -f /var/log/teknabox-agent/agent.log"
     info ""
     if [[ ${#MISSING_REQUIRED[@]} -gt 0 ]]; then
         warn " WARNING: Missing required tools — see above warnings"
@@ -479,5 +479,5 @@ if systemctl is-active --quiet msp-agent; then
     info "======================================================"
 else
     warn "Service started but may have issues. Check logs:"
-    journalctl -u msp-agent --no-pager -n 20
+    journalctl -u teknabox-agent --no-pager -n 20
 fi

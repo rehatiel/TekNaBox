@@ -4,17 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Teknabox is an MSP (Managed Service Provider) RMM platform with two components:
-- **msp-platform-v2/** — Docker-based server: FastAPI backend + React frontend
-- **msp-agent-v2/** — Python agent installed on Linux client devices
+TekNaBox is an MSP (Managed Service Provider) RMM platform with two components:
+- **platform/** — Docker-based server: FastAPI backend + React frontend
+- **agent/** — Python agent installed on Linux client devices
 
 ## Common Commands
 
-### Platform (msp-platform-v2)
+### Platform (platform/)
 
 ```bash
 # Start the full stack
-cd msp-platform-v2
+cd platform
 docker compose up -d
 
 # Rebuild and restart a specific service after code changes
@@ -26,10 +26,10 @@ docker compose logs -f api
 docker compose logs -f ui
 ```
 
-### Frontend development (msp-platform-v2/msp-ui)
+### Frontend development (platform/ui)
 
 ```bash
-cd msp-platform-v2/msp-ui
+cd platform/ui
 npm install
 npm run dev      # Dev server on :5173, proxies /v1 to localhost:8005
 npm run build    # Production build → dist/
@@ -37,25 +37,25 @@ npm run build    # Production build → dist/
 
 ### Backend interactive docs
 
-Set `ENVIRONMENT=development` in msp-server/.env, restart the api container, then visit `http://localhost:8000/docs`.
+Set `ENVIRONMENT=development` in platform/server/.env, restart the api container, then visit `http://localhost:8000/docs`.
 
 ### Run the integration test suite
 
 ```bash
-cd msp-platform-v2/msp-server
+cd platform/server
 python test_flow.py [--base-url http://localhost:8000]
 # Env overrides: SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD
 ```
 
 The test exercises 19 steps: health check, auth, device enrollment, task dispatch, update rollout, revocation, and audit logging.
 
-### Agent (msp-agent-v2)
+### Agent (agent/)
 
 ```bash
 # Deploy to a device
-scp -r msp-agent-v2/ user@device:/home/user/
+scp -r agent/ user@device:/home/user/
 ssh user@device
-sudo bash /home/user/msp-agent-v2/install.sh --server https://yourserver.com --secret <enrollment_secret>
+sudo bash /home/user/agent/install.sh --server https://yourserver.com --secret <enrollment_secret>
 ```
 
 ## Architecture
@@ -76,7 +76,7 @@ sudo bash /home/user/msp-agent-v2/install.sh --server https://yourserver.com --s
 
 Nginx Proxy Manager handles TLS termination externally. **WebSocket support must be enabled in NPM** for the device channel to work. Production server: `https://tekn-api.synhow.com`
 
-### API (msp-platform-v2/msp-server/app/)
+### API (platform/server/app/)
 
 - **main.py** — FastAPI app, lifespan, auto-bootstrap of super admin on first run
 - **api/v1/** — Routers: `enrollment`, `device_channel` (WebSocket), `management`, `admin`, `monitoring`, `ad_recon`, `security`, `terminal`, `bandwidth`
@@ -85,11 +85,10 @@ Nginx Proxy Manager handles TLS termination externally. **WebSocket support must
 - **services/connection_manager.py** — WebSocket + Redis pub/sub relay (any API instance can message any connected device)
 - **services/audit.py** — Write-once audit logs (PostgreSQL RULE prevents UPDATE/DELETE)
 - **workers/main.py** — Celery tasks
-- **migrations/** — 4 Alembic migration files (0001–0004)
 
 The API is async-first (asyncpg + AsyncSessionLocal). Rate limiting via slowapi (200 req/min on sensitive endpoints).
 
-### Frontend (msp-platform-v2/msp-ui/src/)
+### Frontend (platform/ui/src/)
 
 - **App.jsx** — Routing and navigation
 - **lib/api.js** — Fetch wrapper for all `/v1` calls
@@ -99,7 +98,7 @@ The API is async-first (asyncpg + AsyncSessionLocal). Rate limiting via slowapi 
 
 Styling: Tailwind CSS. Charts: Recharts. Icons: Lucide React.
 
-### Agent (msp-agent-v2/)
+### Agent (agent/)
 
 - **agent.py** — asyncio entry point
 - **core/connection.py** — Outbound WSS connection to server (no inbound ports required)

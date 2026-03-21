@@ -1,6 +1,6 @@
 """
 Configuration management.
-All persistent state lives in /etc/msp-agent/config.json.
+All persistent state lives in /etc/teknabox-agent/config.json.
 """
 
 import json
@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
-CONFIG_PATH = os.environ.get("MSP_CONFIG_PATH", "/etc/msp-agent/config.json")
+CONFIG_PATH = os.environ.get("TEKNABOX_CONFIG_PATH", "/etc/teknabox-agent/config.json")
 DEFAULT_VERSION = "1.0.0"
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class AgentConfig:
 
     # Logging
     log_level: str = "INFO"
-    log_file: str = "/var/log/msp-agent/agent.log"
+    log_file: str = "/var/log/teknabox-agent/agent.log"
 
 
 def load_config() -> AgentConfig:

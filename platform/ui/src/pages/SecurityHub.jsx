@@ -225,6 +225,7 @@ function TaskPanel({ task, deviceId }) {
 
   const launch = useCallback(async () => {
     if (!deviceId) { setError('Select a device first'); return }
+    clearInterval(pollRef.current)
     setRunning(true); setResult(null); setError(null)
     try {
       const { task_id } = await api.issueTask(deviceId, {

@@ -11,6 +11,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 from sqlalchemy import select, and_, update as sql_update
+from sqlalchemy.orm import joinedload
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
@@ -94,7 +95,9 @@ async def update_scheduler():
                     continue
 
                 result = await db.execute(
-                    select(DeviceUpdateJob).where(
+                    select(DeviceUpdateJob)
+                    .options(joinedload(DeviceUpdateJob.release))
+                    .where(
                         and_(
                             DeviceUpdateJob.status.in_([
                                 UpdateStatus.PENDING, UpdateStatus.NOTIFIED
@@ -103,18 +106,10 @@ async def update_scheduler():
                         )
                     )
                 )
-                jobs = result.scalars().all()
+                jobs = result.unique().scalars().all()
                 for job in jobs:
-                    release_result = await db.execute(
-                        select(ClientRelease).where(
-                            and_(
-                                ClientRelease.id == job.release_id,
-                                ClientRelease.is_active,
-                            )
-                        )
-                    )
-                    release = release_result.scalar_one_or_none()
-                    if release:
+                    release = job.release
+                    if release and release.is_active:
                         await notify_device_of_update(job.device_id, release, job.id)
                         job.status = UpdateStatus.NOTIFIED
                         job.notified_at = datetime.now(timezone.utc)

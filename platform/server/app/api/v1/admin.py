@@ -289,6 +289,7 @@ async def list_operators(
             "role":         op.role,
             "msp_id":       op.msp_id,
             "is_active":    op.is_active,
+            "mfa_enabled":  op.mfa_enabled,
             "last_login_at": op.last_login_at.isoformat() if op.last_login_at else None,
             "created_at":   op.created_at.isoformat(),
             "revoked_at":   op.revoked_at.isoformat() if op.revoked_at else None,
@@ -334,5 +335,92 @@ async def update_operator(
     if body.is_active is not None:
         target.is_active = body.is_active
 
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Email already in use")
     return {"id": target.id, "email": target.email, "role": target.role, "is_active": target.is_active}
+
+
+# ── MFA / TOTP ────────────────────────────────────────────────────────────────
+
+@router.post("/mfa/setup")
+async def mfa_setup(
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate a new TOTP secret for the calling operator.
+    Returns the secret and provisioning URI for QR code display.
+    Does NOT enable MFA — the operator must call /mfa/enable after scanning.
+    """
+    from app.core.security import generate_totp_secret, get_totp_uri
+    secret = generate_totp_secret()
+    operator.totp_secret = secret
+    await db.commit()
+    return {
+        "secret": secret,
+        "uri": get_totp_uri(secret, operator.email),
+        "mfa_enabled": operator.mfa_enabled,
+    }
+
+
+class MFACodeRequest(BaseModel):
+    code: str
+
+
+@router.post("/mfa/enable")
+async def mfa_enable(
+    body: MFACodeRequest,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Verify the TOTP code from the authenticator app and enable MFA."""
+    from app.core.security import verify_totp
+    if not operator.totp_secret:
+        raise HTTPException(400, "Call /mfa/setup first to generate a secret")
+    if not verify_totp(operator.totp_secret, body.code):
+        raise HTTPException(400, "Invalid TOTP code")
+    operator.mfa_enabled = True
+    await db.commit()
+    return {"mfa_enabled": True}
+
+
+@router.post("/mfa/disable")
+async def mfa_disable(
+    body: MFACodeRequest,
+    operator: Operator = Depends(get_current_operator),
+    db: AsyncSession = Depends(get_db),
+):
+    """Disable MFA. Requires current TOTP code to confirm."""
+    from app.core.security import verify_totp
+    if not operator.mfa_enabled or not operator.totp_secret:
+        raise HTTPException(400, "MFA is not enabled")
+    if not verify_totp(operator.totp_secret, body.code):
+        raise HTTPException(400, "Invalid TOTP code")
+    operator.mfa_enabled = False
+    operator.totp_secret = None
+    await db.commit()
+    return {"mfa_enabled": False}
+
+
+@router.delete("/operators/{operator_id}/mfa")
+async def admin_disable_mfa(
+    operator_id: str,
+    operator: Operator = Depends(require_role(OperatorRole.SUPER_ADMIN, OperatorRole.MSP_ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: forcefully disable MFA for an operator (e.g. lost authenticator device)."""
+    target = (await db.execute(
+        select(Operator).where(Operator.id == operator_id)
+    )).scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, "Operator not found")
+    if operator.role == OperatorRole.MSP_ADMIN and target.msp_id != operator.msp_id:
+        raise HTTPException(403, "Access denied")
+    target.mfa_enabled = False
+    target.totp_secret = None
+    await db.commit()
+    return {"mfa_enabled": False}
+

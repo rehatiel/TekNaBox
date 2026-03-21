@@ -3,7 +3,6 @@ uvicorn[standard]==0.30.6
 websockets==13.0
 sqlalchemy[asyncio]==2.0.35
 asyncpg==0.29.0
-alembic==1.13.2
 redis[hiredis]==5.0.8
 pydantic==2.9.2
 pydantic-settings==2.5.2
@@ -17,3 +16,4 @@ aiofiles==24.1.0
 structlog==24.4.0
 prometheus-client==0.21.0
 slowapi==0.1.9
+pyotp==2.9.0

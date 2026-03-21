@@ -1,4 +1,4 @@
-# Teknabox — MSP Command Platform
+# TekNaBox — MSP Remote Management Platform
 
 A self-hosted Remote Monitoring & Management (RMM) platform built for Managed Service Providers. Run network diagnostics, security audits, and real-time terminal sessions on remote Linux devices — all from a single browser-based dashboard.
 
@@ -63,7 +63,7 @@ Browser ──HTTPS──▶ Nginx Proxy Manager ──▶ ┌──────
                                             └─────────────┘
                                                    │ WSS
                                             Remote Linux Device
-                                            └── msp-agent-v2 (outbound WSS only)
+                                            └── teknabox-agent (outbound WSS only)
 ```
 
 The agent connects **outbound only** — no inbound ports are required on the client device. WebSocket messages are relayed through Redis pub/sub so any API worker instance can reach any connected agent.
@@ -90,14 +90,14 @@ The agent connects **outbound only** — no inbound ports are required on the cl
 
 ```bash
 git clone https://github.com/yourname/teknabox.git
-cd teknabox/msp-platform-v2
-cp msp-server/.env.example msp-server/.env
+cd teknabox/platform
+cp server/.env.example server/.env
 ```
 
-Edit `msp-server/.env`:
+Edit `server/.env`:
 
 ```env
-DATABASE_URL=postgresql+asyncpg://msp:msppass@db/mspdb
+DATABASE_URL=postgresql+asyncpg://teknabox:yourpass@db/teknabox
 REDIS_URL=redis://redis:6379/0
 SECRET_KEY=<generate with: python -c "import secrets; print(secrets.token_hex(32))">
 BOOTSTRAP_EMAIL=admin@yourmsp.com
@@ -125,9 +125,9 @@ Navigate to your configured domain and sign in with the `BOOTSTRAP_EMAIL` / `BOO
 2. On the target Linux device:
 
 ```bash
-scp -r msp-agent-v2/ user@device:/home/user/
+scp -r agent/ user@device:/home/user/
 ssh user@device
-sudo bash /home/user/msp-agent-v2/install.sh \
+sudo bash /home/user/agent/install.sh \
   --server https://your-api-domain.com \
   --secret <enrollment_secret>
 ```
@@ -141,7 +141,7 @@ The agent installs as a systemd service, enrolls once, and maintains a persisten
 ### Backend
 
 ```bash
-cd msp-platform-v2
+cd platform
 # Rebuild and restart after code changes
 docker compose build api && docker compose up -d api
 
@@ -156,14 +156,14 @@ ENVIRONMENT=development
 Run the integration test suite (19 steps — health, auth, enroll, task dispatch, updates, audit):
 
 ```bash
-cd msp-platform-v2/msp-server
+cd platform/server
 python test_flow.py --base-url http://localhost:8000
 ```
 
 ### Frontend
 
 ```bash
-cd msp-platform-v2/msp-ui
+cd platform/ui
 npm install
 npm run dev   # Dev server on :5173, proxies /v1 to localhost:8005
 npm run build # Production build → dist/
@@ -193,23 +193,22 @@ npm run build # Production build → dist/
 
 ```
 teknabox/
-├── msp-platform-v2/
+├── platform/
 │   ├── docker-compose.yml
-│   ├── msp-server/
+│   ├── server/
 │   │   ├── app/
 │   │   │   ├── api/v1/          # FastAPI routers
 │   │   │   ├── core/            # Auth, config, database, security
 │   │   │   ├── models/          # SQLAlchemy ORM models
 │   │   │   ├── services/        # Connection manager, audit
 │   │   │   └── workers/         # Celery tasks
-│   │   └── migrations/          # Alembic-style SQL migrations (0001–0006)
-│   └── msp-ui/
+│   └── ui/
 │       └── src/
 │           ├── components/      # Shared UI primitives + Sidebar
-│           ├── hooks/           # useAuth
+│           ├── hooks/           # useAuth, useTheme, useTaskPoll
 │           ├── lib/             # api.js fetch wrapper
-│           └── pages/           # One file per page (18 pages)
-└── msp-agent-v2/
+│           └── pages/           # One file per page (20 pages)
+└── agent/
     ├── agent.py                 # asyncio entry point
     ├── core/                    # Connection, dispatcher, monitor, terminal, bandwidth, updater
     ├── tasks/                   # 29 task modules

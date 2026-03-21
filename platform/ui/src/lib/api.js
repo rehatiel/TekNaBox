@@ -62,7 +62,15 @@ const patch = (path, body)  => request('PATCH', path, body)
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const api = {
   login: (email, password) => post('/v1/auth/login', { email, password }),
+  logout: () => post('/v1/auth/logout', {}),
+  confirmMfa: (mfa_token, code) => post('/v1/auth/mfa/confirm', { mfa_token, code }),
   getWsTicket: () => post('/v1/ws-ticket', {}),
+
+  // ── MFA ─────────────────────────────────────────────────────────────────────
+  mfaSetup:   ()     => post('/v1/mfa/setup', {}),
+  mfaEnable:  (code) => post('/v1/mfa/enable', { code }),
+  mfaDisable: (code) => post('/v1/mfa/disable', { code }),
+  mfaAdminDisable: (operatorId) => del(`/v1/operators/${operatorId}/mfa`),
 
   // ── MSPs ────────────────────────────────────────────────────────────────────
   getMsps:       ()       => get('/v1/msps'),
@@ -88,6 +96,7 @@ export const api = {
     return get(`/v1/devices${q ? `?${q}` : ''}`)
   },
   createDevice:  (data)   => post('/v1/devices', data),
+  updateDevice:  (id, data) => patch(`/v1/devices/${id}`, data),
   revokeDevice:  (id, reason) => post(`/v1/devices/${id}/revoke${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`),
   resetDevice:   (id, reason) => post(`/v1/devices/${id}/reset${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`),
   deleteDevice:  (id)         => del(`/v1/devices/${id}`),

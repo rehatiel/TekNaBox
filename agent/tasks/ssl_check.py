@@ -22,6 +22,23 @@ logger = logging.getLogger(__name__)
 SAFE_HOST_RE = re.compile(r'^[a-zA-Z0-9.\-]+$')
 MAX_TARGETS  = 30
 
+# SSL contexts created once and reused across all targets
+_CTX_STRICT: ssl.SSLContext | None = None
+_CTX_UNVERIFIED: ssl.SSLContext | None = None
+
+
+def _get_ssl_context(verify: bool = True) -> ssl.SSLContext:
+    global _CTX_STRICT, _CTX_UNVERIFIED
+    if verify:
+        if _CTX_STRICT is None:
+            _CTX_STRICT = ssl.create_default_context()
+        return _CTX_STRICT
+    if _CTX_UNVERIFIED is None:
+        _CTX_UNVERIFIED = ssl.create_default_context()
+        _CTX_UNVERIFIED.check_hostname = False
+        _CTX_UNVERIFIED.verify_mode    = ssl.CERT_NONE
+    return _CTX_UNVERIFIED
+
 
 async def run(payload: dict) -> dict:
     raw      = payload.get("targets", [])
@@ -117,37 +134,27 @@ async def _check_target(host: str, port: int, warn_days: int) -> dict:
 
 
 def _fetch_cert_info(host: str, port: int) -> dict:
-    ctx = ssl.create_default_context()
-    try:
-        with socket.create_connection((host, port), timeout=8) as sock:
-            with ctx.wrap_socket(sock, server_hostname=host) as ssock:
-                cert        = ssock.getpeercert()
-                cipher      = ssock.cipher()
-                tls_version = ssock.version()
-    except ssl.SSLCertVerificationError as e:
-        # Still try to get cert info with unverified context
-        ctx2 = ssl.create_default_context()
-        ctx2.check_hostname = False
-        ctx2.verify_mode    = ssl.CERT_NONE
-        with socket.create_connection((host, port), timeout=8) as sock:
-            with ctx2.wrap_socket(sock, server_hostname=host) as ssock:
-                cert        = ssock.getpeercert()
-                cipher      = ssock.cipher()
-                tls_version = ssock.version()
-        return {
-            "valid":          False,
-            "verify_error":   str(e),
-            "tls_version":    tls_version,
-            "cipher":         cipher[0] if cipher else None,
-            **_parse_cert(cert),
-        }
-
-    return {
-        "valid":       True,
-        "tls_version": tls_version,
-        "cipher":      cipher[0] if cipher else None,
-        **_parse_cert(cert),
-    }
+    verify_error = None
+    for verify in (True, False):
+        ctx = _get_ssl_context(verify=verify)
+        try:
+            with socket.create_connection((host, port), timeout=8) as sock:
+                with ctx.wrap_socket(sock, server_hostname=host) as ssock:
+                    cert        = ssock.getpeercert()
+                    cipher      = ssock.cipher()
+                    tls_version = ssock.version()
+            return {
+                "valid":        verify and verify_error is None,
+                "verify_error": verify_error,
+                "tls_version":  tls_version,
+                "cipher":       cipher[0] if cipher else None,
+                **_parse_cert(cert),
+            }
+        except ssl.SSLCertVerificationError as e:
+            if verify:
+                verify_error = str(e)
+                continue  # retry without strict verification
+            raise
 
 
 def _parse_cert(cert: dict) -> dict:

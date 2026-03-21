@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-MSP Remote Diagnostics Agent
-Connects outbound to the MSP server over WSS (port 443).
+TekNaBox Agent
+Connects outbound to the TekNaBox server over WSS (port 443).
 Runs on Raspberry Pi, Debian, Ubuntu — any Linux with Python 3.10+.
 
 Entry point. Starts the connection loop and handles signals gracefully.

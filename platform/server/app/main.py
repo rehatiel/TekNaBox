@@ -1,5 +1,5 @@
 """
-MSP Remote Diagnostics Platform - Server
+TekNaBox — MSP Remote Management Platform (Server)
 FastAPI application entry point.
 """
 
@@ -65,11 +65,37 @@ async def _auto_bootstrap():
         logger.info("bootstrap_complete", email=settings.bootstrap_email)
 
 
+async def _apply_column_additions():
+    """
+    Add new columns to existing tables that predate them.
+    Uses ADD COLUMN IF NOT EXISTS so it is safe to run on every startup.
+    """
+    from sqlalchemy import text
+    stmts = [
+        # Device — notes and tags (added for operator metadata)
+        "ALTER TABLE devices ADD COLUMN IF NOT EXISTS notes TEXT",
+        "ALTER TABLE devices ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb",
+        # Operator — MFA / TOTP
+        "ALTER TABLE operators ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE operators ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)",
+        # Indexes — safe to run repeatedly (CREATE INDEX IF NOT EXISTS)
+        "CREATE INDEX IF NOT EXISTS ix_task_type_status ON tasks (task_type, status)",
+        "CREATE INDEX IF NOT EXISTS ix_task_queued_at ON tasks (queued_at)",
+        "CREATE INDEX IF NOT EXISTS ix_telemetry_device_type ON telemetry (device_id, telemetry_type)",
+    ]
+    async with engine.begin() as conn:
+        for stmt in stmts:
+            await conn.execute(text(stmt))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Create tables — checkfirst=True prevents errors on restart
     async with engine.begin() as conn:
         await conn.run_sync(lambda c: Base.metadata.create_all(c, checkfirst=True))
+
+    # Add any new columns to existing tables
+    await _apply_column_additions()
 
     # Auto-bootstrap super admin from env vars
     await _auto_bootstrap()
@@ -86,7 +112,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="MSP Remote Diagnostics Platform",
+    title="TekNaBox",
     version="1.0.0",
     # Disable ALL API schema endpoints in production — leaks full API surface
     docs_url="/docs" if settings.environment != "production" else None,

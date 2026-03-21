@@ -1,4 +1,4 @@
-# MSP Remote Diagnostics Platform — Server
+# TekNaBox — Server
 
 A production-grade, multi-tenant server for managing fleets of headless Raspberry Pi Zero devices deployed inside customer networks. All communication occurs over standard HTTPS/WebSocket on **TCP port 443**, fully encrypted, client-initiated outbound only.
 
