@@ -24,8 +24,8 @@ platform/
 cd platform
 
 # 1. Create your .env file
-cp server/.env.example server/.env
-# Edit server/.env — fill in passwords, generate SECRET_KEY:
+cp .env.example .env
+# Edit .env — fill in passwords, generate SECRET_KEY:
 # python3 -c "import secrets; print(secrets.token_hex(32))"
 
 # 2. Build and start

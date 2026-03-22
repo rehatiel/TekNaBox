@@ -92,19 +92,22 @@ The agent connects **outbound only** — no inbound ports are required on the cl
 
 ```bash
 git clone https://github.com/rehatiel/TekNaBox.git
-cd teknabox/platform
-cp server/.env.example server/.env
+cd TekNaBox/platform
+cp .env.example .env
 ```
 
-Edit `server/.env`:
+Edit `platform/.env` — at minimum set these required values:
 
 ```env
-DATABASE_URL=postgresql+asyncpg://teknabox:yourpass@db/teknabox
-REDIS_URL=redis://redis:6379/0
-SECRET_KEY=<generate with: python -c "import secrets; print(secrets.token_hex(32))">
-BOOTSTRAP_EMAIL=admin@yourmsp.com
+BOOTSTRAP_EMAIL=admin@yourdomain.com
 BOOTSTRAP_PASSWORD=<strong password>
-ENVIRONMENT=production
+SECRET_KEY=<generate: python3 -c "import secrets; print(secrets.token_hex(32))">
+DEVICE_TOKEN_SECRET=<generate: python3 -c "import secrets; print(secrets.token_hex(32))">
+API_BASE_URL=https://api.yourdomain.com
+VITE_API_BASE=https://api.yourdomain.com
+VITE_WS_BASE=https://yourdomain.com
+DB_PASSWORD=<strong password>
+REDIS_PASSWORD=<strong password>
 ```
 
 ### 2. Start the stack
