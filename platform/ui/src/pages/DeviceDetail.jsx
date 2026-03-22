@@ -6,7 +6,7 @@ import {
   Table, TR, TD, PageHeader
 } from '../components/ui'
 import {
-  ArrowLeft, RefreshCw, XCircle, RotateCcw, Trash2,
+  ArrowLeft, RefreshCw, XCircle, RotateCcw, Trash2, Archive,
   ChevronDown, Terminal, Radio, FileText, Shield,
   ShieldAlert, Network, Play, Check, Clock, Wifi
 } from 'lucide-react'
@@ -713,7 +713,10 @@ export default function DeviceDetail() {
                       <div className="border-t border-bg-border my-1" />
                       <button onClick={() => { setShowActions(false); setShowDelete(true) }}
                         className="w-full text-left px-3 py-2 text-xs text-red-DEFAULT hover:bg-red-dim flex items-center gap-2">
-                        <Trash2 className="w-3.5 h-3.5" /> Delete
+                        {device.role === 'prospecting'
+                          ? <><Archive className="w-3.5 h-3.5" /> Archive</>
+                          : <><Trash2 className="w-3.5 h-3.5" /> Delete</>
+                        }
                       </button>
                     </div>
                   </>
@@ -924,10 +927,17 @@ export default function DeviceDetail() {
           onConfirm={handleReset} onClose={() => setShowReset(false)} />
       )}
       {showDelete && (
-        <ActionModal title="Delete Device"
-          description={`Permanently deletes "${device.name}" and all task history.`}
-          confirmLabel="Delete Device" confirmClass="btn-danger"
-          onConfirm={handleDelete} onClose={() => setShowDelete(false)} />
+        device.role === 'prospecting' ? (
+          <ActionModal title="Archive Prospecting Device"
+            description={`Archives "${device.name}" and removes it from the active device list. All collected intelligence — task results, findings, AD reports, and discovered devices — will be preserved in Reports and Findings.`}
+            confirmLabel="Archive Device" confirmClass="btn-danger"
+            onConfirm={handleDelete} onClose={() => setShowDelete(false)} />
+        ) : (
+          <ActionModal title="Delete Device"
+            description={`Permanently deletes "${device.name}" and all task history.`}
+            confirmLabel="Delete Device" confirmClass="btn-danger"
+            onConfirm={handleDelete} onClose={() => setShowDelete(false)} />
+        )
       )}
 
       {resetResult && (

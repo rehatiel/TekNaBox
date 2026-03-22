@@ -474,55 +474,6 @@ class AuditLog(Base):
     )
 
 
-# ── Uptime Monitoring ─────────────────────────────────────────────────────────
-
-class MonitorTarget(Base):
-    """A host/IP that a device should ping periodically (LAN monitoring)."""
-    __tablename__ = "monitor_targets"
-
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=new_uuid)
-    device_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("devices.id"), nullable=False)
-    msp_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("msp_organizations.id"), nullable=False)
-    customer_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("customer_organizations.id"), nullable=False)
-
-    label: Mapped[str] = mapped_column(String(128), nullable=False)       # friendly name
-    host: Mapped[str] = mapped_column(String(255), nullable=False)         # IP or hostname
-    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    interval_seconds: Mapped[int] = mapped_column(Integer, default=30)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-
-    __table_args__ = (
-        Index("ix_monitor_target_device", "device_id"),
-    )
-
-
-class UptimeCheck(Base):
-    """Result of a single ping check — from Pi (LAN) or server (WAN)."""
-    __tablename__ = "uptime_checks"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    device_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("devices.id"), nullable=False)
-    msp_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("msp_organizations.id"), nullable=False)
-    customer_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("customer_organizations.id"))
-
-    # What was checked
-    target: Mapped[str] = mapped_column(String(255), nullable=False)       # IP/host that was pinged
-    source: Mapped[str] = mapped_column(String(16), nullable=False)        # "lan" (Pi) or "wan" (server)
-    monitor_target_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("monitor_targets.id"))
-
-    # Result
-    success: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    rtt_ms: Mapped[Optional[float]] = mapped_column()                      # None on failure
-    packet_loss_pct: Mapped[float] = mapped_column(default=0.0)
-
-    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
-
-    __table_args__ = (
-        Index("ix_uptime_device_target_time", "device_id", "target", "checked_at"),
-        Index("ix_uptime_msp_time", "msp_id", "checked_at"),
-    )
-
-
 # ── Active Directory Recon Reports ────────────────────────────────────────────
 
 class ADReport(Base):
@@ -656,4 +607,101 @@ class AlertConfig(Base):
 
     __table_args__ = (
         Index("ix_alert_config_msp_id", "msp_id"),
+    )
+
+
+# ── Uptime Monitors ────────────────────────────────────────────────────────────
+
+class MonitorType(str, PyEnum):
+    PING = "ping"
+    TCP  = "tcp"
+    HTTP = "http"
+    DNS  = "dns"
+
+
+class Monitor(Base):
+    """
+    A single uptime monitor — defines what to check and which agent checks it.
+    Supports ping, TCP port, HTTP(S), and DNS checks.
+    """
+    __tablename__ = "monitors"
+
+    id:          Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=new_uuid)
+    msp_id:      Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("msp_organizations.id"), nullable=False)
+    customer_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("customer_organizations.id"))
+    device_id:   Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("devices.id"), nullable=False)
+
+    name:             Mapped[str]  = mapped_column(String(128), nullable=False)
+    type:             Mapped[MonitorType] = mapped_column(Enum(MonitorType, name="monitor_type"), nullable=False)
+    target:           Mapped[str]  = mapped_column(String(512), nullable=False)   # IP, hostname, or URL
+    port:             Mapped[Optional[int]] = mapped_column(Integer)              # for TCP (and HTTP override)
+    interval_seconds: Mapped[int]  = mapped_column(Integer, default=60)
+    timeout_seconds:  Mapped[int]  = mapped_column(Integer, default=10)
+    enabled:          Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # HTTP-specific
+    http_method:          Mapped[Optional[str]] = mapped_column(String(8))     # GET, HEAD, POST
+    http_expected_status: Mapped[Optional[int]] = mapped_column(Integer)       # 200
+    http_keyword:         Mapped[Optional[str]] = mapped_column(String(256))   # body keyword match
+    http_ignore_ssl:      Mapped[bool]          = mapped_column(Boolean, default=False)
+
+    # DNS-specific
+    dns_record_type:    Mapped[Optional[str]] = mapped_column(String(16))   # A, AAAA, CNAME, MX
+    dns_expected_value: Mapped[Optional[str]] = mapped_column(String(256))  # expected resolved value
+
+    # Alert settings
+    alert_enabled:   Mapped[bool] = mapped_column(Boolean, default=False)
+    alert_threshold: Mapped[int]  = mapped_column(Integer, default=2)  # consecutive failures to alert
+
+    # Live state — updated on each result
+    last_status:           Mapped[Optional[bool]]     = mapped_column(Boolean)
+    last_rtt_ms:           Mapped[Optional[float]]    = mapped_column()
+    last_checked_at:       Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_status_change_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    consecutive_failures:  Mapped[int]                = mapped_column(Integer, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    checks: Mapped[list["MonitorCheck"]] = relationship(
+        back_populates="monitor", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+    __table_args__ = (
+        Index("ix_monitor_msp",    "msp_id"),
+        Index("ix_monitor_device", "device_id"),
+    )
+
+
+class MonitorCheck(Base):
+    """One row per check result sent by an agent."""
+    __tablename__ = "monitor_checks"
+
+    id:         Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    monitor_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False
+    )
+    device_id:  Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("devices.id"), nullable=False)
+    msp_id:     Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("msp_organizations.id"), nullable=False)
+
+    checked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    success:  Mapped[bool]          = mapped_column(Boolean, nullable=False)
+    rtt_ms:   Mapped[Optional[float]] = mapped_column()
+    error:    Mapped[Optional[str]]   = mapped_column(String(512))
+
+    # HTTP
+    status_code:       Mapped[Optional[int]]  = mapped_column(Integer)
+    cert_expiry_days:  Mapped[Optional[int]]  = mapped_column(Integer)
+    keyword_match:     Mapped[Optional[bool]] = mapped_column(Boolean)
+
+    # DNS
+    dns_result: Mapped[Optional[str]] = mapped_column(String(512))
+
+    monitor: Mapped["Monitor"] = relationship(back_populates="checks")
+
+    __table_args__ = (
+        Index("ix_mc_monitor_time", "monitor_id", "checked_at"),
+        Index("ix_mc_msp_time",     "msp_id",     "checked_at"),
     )

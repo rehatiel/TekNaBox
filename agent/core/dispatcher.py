@@ -86,16 +86,13 @@ async def dispatch(
         return None
     elif msg_type == "config_update":
         return await _handle_config_update(msg, config)
-    elif msg_type == "monitor_config":
-        from core.monitor import update_monitor_config
-        targets  = msg.get("targets", [])
-        interval = msg.get("interval", 30)
-        await update_monitor_config(targets, interval)
-        return None
-
     elif msg_type == "net_watch_config":
         from core.net_watcher import update_net_watch_config
         await update_net_watch_config(msg)
+        return None
+    elif msg_type == "monitor_config":
+        from core.monitor import update_monitor_config
+        await update_monitor_config(msg.get("monitors", []))
         return None
 
     return None

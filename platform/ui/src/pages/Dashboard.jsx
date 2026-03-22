@@ -41,17 +41,11 @@ function StatCard({ label, value, icon: Icon, accent = 'slate', to, sub }) {
   return to ? <Link to={to}>{inner}</Link> : inner
 }
 
-function UptimePill({ pct }) {
-  if (pct == null) return <span className="text-slate-700 text-xs">—</span>
-  const color = pct >= 99 ? 'text-green-DEFAULT' : pct >= 95 ? 'text-amber-DEFAULT' : 'text-red-DEFAULT'
-  return <span className={`text-xs font-mono ${color}`}>{pct.toFixed(1)}%</span>
-}
 
 export default function Dashboard() {
   const [devices, setDevices]       = useState([])
   const [auditLogs, setAuditLogs]   = useState([])
   const [tasks, setTasks]           = useState([])
-  const [uptime, setUptime]         = useState([])
   const [findings, setFindings]     = useState([])
   const [loading, setLoading]       = useState(true)
 
@@ -60,13 +54,11 @@ export default function Dashboard() {
       api.getDevices().catch(() => []),
       api.getAudit({ limit: 10 }).catch(() => []),
       api.getAllTasks({ limit: 200 }).catch(() => []),
-      api.getUptimeSummary(24).catch(() => []),
       api.get('/v1/findings?limit=200').catch(() => []),
-    ]).then(([d, a, t, u, f]) => {
+    ]).then(([d, a, t, f]) => {
       setDevices(d)
       setAuditLogs(a)
       setTasks(t)
-      setUptime(Array.isArray(u) ? u : [])
       setFindings(Array.isArray(f) ? f : [])
     }).finally(() => setLoading(false))
   }, [])
@@ -96,9 +88,6 @@ export default function Dashboard() {
     (d.last_disk_pct != null && d.last_disk_pct >= 85) ||
     (d.last_cpu_temp_c != null && d.last_cpu_temp_c >= 70)
   ).length
-
-  // Uptime map: device_id → { wan, lan }
-  const uptimeByDevice = Object.fromEntries(uptime.map(u => [u.device_id, u]))
 
   // Devices sorted by last_seen desc (active first)
   const recentDevices = [...devices]
@@ -183,10 +172,8 @@ export default function Dashboard() {
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
-          <Table headers={['Device', 'Status', 'Health', 'WAN', 'Last Seen']}>
-            {recentDevices.map(d => {
-              const u = uptimeByDevice[d.id]
-              return (
+          <Table headers={['Device', 'Status', 'Health', 'Last Seen']}>
+            {recentDevices.map(d => (
                 <TR key={d.id}>
                   <TD>
                     <Link to={`/devices/${d.id}`} className="hover:text-cyan-DEFAULT transition-colors">
@@ -214,7 +201,6 @@ export default function Dashboard() {
                       <span className="text-xs text-slate-700">—</span>
                     )}
                   </TD>
-                  <TD><UptimePill pct={u?.wan?.uptime_pct} /></TD>
                   <TD>
                     <span className="text-xs text-slate-600 font-mono">
                       {d.last_seen_at
@@ -224,8 +210,7 @@ export default function Dashboard() {
                     </span>
                   </TD>
                 </TR>
-              )
-            })}
+            ))}
           </Table>
           {devices.length === 0 && (
             <div className="py-10 text-center text-slate-600 text-sm">No devices yet</div>

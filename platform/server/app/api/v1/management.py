@@ -263,6 +263,7 @@ async def list_devices(
     customer_id: Optional[str] = None,
     site_id: Optional[str] = None,
     status: Optional[DeviceStatus] = None,
+    include_archived: bool = False,
     limit: int = 200,
     offset: int = 0,
     operator: Operator = Depends(get_current_operator),
@@ -275,6 +276,10 @@ async def list_devices(
         q = q.where(Device.site_id == site_id)
     if status:
         q = q.where(Device.status == status)
+    if not include_archived:
+        # Hide prospecting devices that were archived (soft-deleted to preserve their data)
+        from sqlalchemy import or_
+        q = q.where(or_(Device.revoke_reason != "archived", Device.revoke_reason.is_(None)))
     q = q.order_by(Device.created_at.desc()).limit(min(limit, 500)).offset(offset)
     devices = (await db.execute(q)).scalars().all()
     return [_device_dict(d) for d in devices]
@@ -385,14 +390,32 @@ async def delete_device(
     Requires MSP_ADMIN role.
     Sends kill signal first if connected, then removes all child rows in
     FK-dependency order before deleting the device itself.
+
+    Exception: PROSPECTING devices are archived instead of deleted so that
+    all collected intelligence (tasks, findings, AD reports, discovered
+    devices) is preserved.  Archived devices are hidden from the default
+    device list but their data remains queryable.
     """
     from sqlalchemy import delete as sql_delete
     from app.models.models import (
-        Task, Telemetry, DeviceUpdateJob, ADReport, ScanFinding,
-        MonitorTarget, UptimeCheck,
+        Task, Telemetry, DeviceUpdateJob, ADReport, ScanFinding, Monitor,
     )
 
     device = await _get_device(db, device_id, operator.msp_id)
+
+    # ── Prospecting devices: archive instead of delete ─────────────────────
+    if device.role == DeviceRole.PROSPECTING:
+        await cm.send_to_device(device_id, {"type": "kill", "reason": "device archived"})
+        device.status = DeviceStatus.REVOKED
+        device.revoked_at = datetime.now(timezone.utc)
+        device.revoke_reason = "archived"
+        await write_audit(
+            db, AuditAction.DEVICE_REVOKED,
+            msp_id=operator.msp_id, operator_id=operator.id,
+            device_id=device_id, detail={"action": "archived"},
+        )
+        await db.commit()
+        return {"status": "archived"}
 
     # Kick off connected agent before deleting
     await cm.send_to_device(device_id, {"type": "kill", "reason": "device deleted"})
@@ -414,8 +437,7 @@ async def delete_device(
     # Delete child rows in FK-safe order (deepest children first).
     # audit_logs.device_id is a bare UUID with no FK — safe to leave as-is.
     for model in (
-        UptimeCheck,       # → device_id
-        MonitorTarget,     # → device_id
+        Monitor,           # → device_id (cascades to MonitorCheck via DB)
         ScanFinding,       # → device_id, task_id
         ADReport,          # → device_id, task_id
         Telemetry,         # → device_id

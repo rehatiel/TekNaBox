@@ -14,7 +14,6 @@ const Dashboard                = lazy(() => import('./pages/Dashboard'))
 const Devices                  = lazy(() => import('./pages/Devices'))
 const DeviceDetail             = lazy(() => import('./pages/DeviceDetail'))
 const TasksPage                = lazy(() => import('./pages/Tasks'))
-const Monitoring               = lazy(() => import('./pages/Monitoring'))
 const ADReportPage             = lazy(() => import('./pages/ADReport'))
 const UsersPage                = lazy(() => import('./pages/Users'))
 const Findings                 = lazy(() => import('./pages/Findings'))
@@ -30,6 +29,7 @@ const NetworkToolsPage         = lazy(() => import('./pages/NetworkTools'))
 const HttpMonitorPage          = lazy(() => import('./pages/HttpMonitor'))
 const CustomerDashboardPage    = lazy(() => import('./pages/CustomerDashboard'))
 const AlertsPage               = lazy(() => import('./pages/Alerts'))
+const MonitoringPage           = lazy(() => import('./pages/Monitoring'))
 
 const lp = (name) => lazy(() => import('./pages/OtherPages').then(m => ({ default: m[name] })))
 const Customers = lp('Customers')
@@ -205,7 +205,6 @@ export default function App() {
                 <Route path="/devices"    element={<Devices />} />
                 <Route path="/devices/:id" element={<DeviceDetail />} />
                 <Route path="/tasks"      element={<TasksPage />} />
-                <Route path="/monitoring"              element={<Monitoring />} />
                 <Route path="/devices/:id/ad-report"  element={<ADReportPage />} />
                 <Route path="/ad-report"              element={<ADReportPage />} />
                 <Route path="/users"                  element={<UsersPage />} />
@@ -220,6 +219,7 @@ export default function App() {
                 <Route path="/network-device/:mac"    element={<NetworkDeviceDetailPage />} />
                 <Route path="/network-tools"          element={<NetworkToolsPage />} />
                 <Route path="/http-monitor"           element={<HttpMonitorPage />} />
+                <Route path="/monitoring"             element={<MonitoringPage />} />
                 <Route path="/customers"     element={<Customers />} />
                 <Route path="/customers/:id" element={<CustomerDashboardPage />} />
                 <Route path="/alerts"        element={<AlertsPage />} />

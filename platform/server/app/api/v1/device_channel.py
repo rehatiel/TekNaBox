@@ -141,6 +141,12 @@ async def device_channel(
         async with AsyncSessionLocal() as db:
             await _maybe_auto_sysinfo(db, device, ws)
 
+        # Push current monitor config to agent on every connect
+        # (agent resets in-memory state on restart)
+        from app.api.v1.monitors import _push_config as _push_monitor_config
+        async with AsyncSessionLocal() as db:
+            await _push_monitor_config(device_id, db)
+
         # Main receive loop
         while True:
             try:
@@ -200,12 +206,11 @@ async def device_channel(
                     await _handle_network_event(db, device_id, device.msp_id,
                                                 device.customer_id, msg)
 
+                elif msg_type == "monitor_result":
+                    await _handle_monitor_result(db, device_id, device.msp_id, msg)
+
                 elif msg_type == "update_status":
                     await _handle_update_status(db, device_id, msg)
-
-                elif msg_type == "monitor_result":
-                    await _handle_monitor_result(db, device_id, device.msp_id,
-                                                 device.customer_id, msg)
 
                 elif msg_type == "pong":
                     pass  # keepalive acknowledged
@@ -359,50 +364,85 @@ async def _handle_telemetry(
     )
     db.add(telem)
 
-    # uptime_ping → also write to uptime_checks for monitoring queries
-    if telemetry_type == "uptime_ping":
-        from app.models.models import UptimeCheck
-        data = msg.get("data", {})
-        results = data.get("results", [])
-        if not results:
-            return
-        for ping in results:
-            check = UptimeCheck(
-                device_id=device_id,
-                msp_id=msp_id,
-                target=ping.get("target", ""),
-                source="lan",
-                success=ping.get("success", False),
-                rtt_ms=ping.get("rtt_ms"),
-                packet_loss_pct=ping.get("packet_loss_pct", 0.0 if ping.get("success") else 100.0),
-                checked_at=datetime.now(timezone.utc),
-            )
-            db.add(check)
 
 
 async def _handle_monitor_result(
-    db: AsyncSession, device_id: str, msp_id: str, customer_id: str, msg: dict
+    db: AsyncSession, device_id: str, msp_id: str, msg: dict
 ) -> None:
-    """Store LAN uptime check results sent by the agent's background monitor loop."""
-    from app.models.models import UptimeCheck
+    """Store monitor check results and update live state on the Monitor row."""
+    from app.models.models import Monitor, MonitorCheck
     now     = datetime.now(timezone.utc)
     results = msg.get("results", [])
+
     for r in results:
-        host = r.get("host", "")
-        if not host:
+        monitor_id = r.get("monitor_id")
+        if not monitor_id:
             continue
-        check = UptimeCheck(
-            device_id=device_id,
-            msp_id=msp_id,
-            customer_id=customer_id,
-            target=host,
-            source="lan",
-            success=r.get("success", False),
-            rtt_ms=r.get("rtt_ms"),
-            packet_loss_pct=0.0 if r.get("success") else 100.0,
-            checked_at=now,
+
+        # Insert check row
+        check = MonitorCheck(
+            monitor_id        = monitor_id,
+            device_id         = device_id,
+            msp_id            = msp_id,
+            checked_at        = now,
+            success           = r.get("success", False),
+            rtt_ms            = r.get("rtt_ms"),
+            error             = r.get("error"),
+            status_code       = r.get("status_code"),
+            cert_expiry_days  = r.get("cert_expiry_days"),
+            keyword_match     = r.get("keyword_match"),
+            dns_result        = r.get("dns_result"),
         )
         db.add(check)
+
+        # Update Monitor live state
+        monitor = await db.get(Monitor, monitor_id)
+        if not monitor or monitor.msp_id != msp_id:
+            continue
+
+        success          = r.get("success", False)
+        prev_status      = monitor.last_status
+        status_changed   = prev_status != success
+
+        monitor.last_rtt_ms     = r.get("rtt_ms")
+        monitor.last_checked_at = now
+        monitor.last_status     = success
+
+        if success:
+            monitor.consecutive_failures = 0
+        else:
+            monitor.consecutive_failures = (monitor.consecutive_failures or 0) + 1
+
+        if status_changed:
+            monitor.last_status_change_at = now
+
+        # Alerting
+        if monitor.alert_enabled:
+            if (not success
+                    and monitor.consecutive_failures == monitor.alert_threshold
+                    and prev_status is not False):
+                # Just crossed the failure threshold → send down alert
+                _fire(_send_monitor_alert(msp_id, monitor, "down"))
+            elif success and prev_status is False:
+                # Recovery
+                _fire(_send_monitor_alert(msp_id, monitor, "up"))
+
+
+async def _send_monitor_alert(msp_id: str, monitor, direction: str) -> None:
+    """Send monitor up/down alert email if the MSP has an alert email configured."""
+    try:
+        from app.models.models import AlertConfig
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(AlertConfig).where(AlertConfig.msp_id == msp_id)
+            )
+            cfg = result.scalar_one_or_none()
+            if not cfg or not cfg.alert_email:
+                return
+            from app.services.mailer import send_monitor_alert
+            await send_monitor_alert(cfg.alert_email, monitor, direction)
+    except Exception as e:
+        logger.error(f"monitor_alert_failed: {e}")
 
 
 async def _handle_network_event(

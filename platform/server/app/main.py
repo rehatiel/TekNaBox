@@ -18,7 +18,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import get_settings
 from app.core.database import engine, Base, AsyncSessionLocal
-from app.api.v1 import enrollment, device_channel, management, admin, monitoring, ad_recon, security, terminal, bandwidth, tunnel
+from app.api.v1 import enrollment, device_channel, management, admin, ad_recon, security, terminal, bandwidth, tunnel, monitors
 from app.services.connection_manager import start_redis_subscriber
 
 # ── Global rate limiter (used on sensitive endpoints) ────────────────────────
@@ -163,7 +163,7 @@ app.include_router(admin.router)
 app.include_router(enrollment.router)
 app.include_router(device_channel.router)
 app.include_router(management.router)
-app.include_router(monitoring.router)
+app.include_router(monitors.router)
 app.include_router(ad_recon.router)
 app.include_router(security.router)
 app.include_router(terminal.router)

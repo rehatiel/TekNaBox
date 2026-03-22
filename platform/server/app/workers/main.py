@@ -142,70 +142,6 @@ async def update_scheduler():
             logger.error(f"update_scheduler_error: {e}")
 
 
-async def wan_uptime_monitor():
-    """
-    Server-side WAN monitor.
-    Pings each active device's last known IP every 60s and records UptimeCheck.
-    """
-    import re
-
-    async def ping_host(host: str) -> tuple[bool, float | None]:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "ping", "-c", "1", "-W", "3", host,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            try:
-                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
-            except asyncio.TimeoutError:
-                proc.kill()
-                await proc.wait()
-                return False, None
-            if proc.returncode == 0:
-                m = re.search(r'time=([\d.]+)', stdout.decode())
-                rtt = float(m.group(1)) if m else None
-                return True, rtt
-        except Exception:
-            pass
-        return False, None
-
-    while True:
-        await asyncio.sleep(60)
-        try:
-            async with AsyncSessionLocal() as db:
-                from app.models.models import UptimeCheck
-                result = await db.execute(
-                    select(Device).where(
-                        and_(
-                            Device.status.in_([DeviceStatus.ACTIVE, DeviceStatus.OFFLINE]),
-                            Device.last_ip.isnot(None),
-                        )
-                    )
-                )
-                devices = result.scalars().all()
-
-                for device in devices:
-                    success, rtt = await ping_host(device.last_ip)
-                    check = UptimeCheck(
-                        device_id=device.id,
-                        msp_id=device.msp_id,
-                        target=device.last_ip,
-                        source="wan",
-                        success=success,
-                        rtt_ms=rtt,
-                        packet_loss_pct=0.0 if success else 100.0,
-                        checked_at=datetime.now(timezone.utc),
-                    )
-                    db.add(check)
-
-                await db.commit()
-                if devices:
-                    logger.debug(f"wan_monitor: checked {len(devices)} devices")
-
-        except Exception as e:
-            logger.error(f"wan_uptime_monitor_error: {e}")
-
 
 async def findings_alerter():
     """
@@ -279,7 +215,6 @@ async def main():
         task_timeout_watchdog(),
         heartbeat_monitor(),
         update_scheduler(),
-        wan_uptime_monitor(),
         findings_alerter(),
     )
 

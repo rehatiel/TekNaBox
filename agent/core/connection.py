@@ -133,16 +133,16 @@ class ConnectionManager:
             self._ws = ws
             logger.info("Connected to server")
 
-            from core.monitor import run_monitor
             from core.net_watcher import run_net_watcher
+            from core.monitor import run_monitor
             try:
                 await asyncio.gather(
                     self._receive_loop(ws),
                     self._send_loop(ws),
                     self._heartbeat_loop(ws),
                     self._token_refresh_loop(),
-                    run_monitor(self.config, self),
                     run_net_watcher(self),
+                    run_monitor(self.config, self),
                 )
             except asyncio.CancelledError:
                 pass
@@ -181,6 +181,9 @@ class ConnectionManager:
             elif msg_type == "net_watch_config":
                 from core.net_watcher import update_net_watch_config
                 self._spawn(update_net_watch_config(msg))
+            elif msg_type == "monitor_config":
+                from core.monitor import update_monitor_config
+                self._spawn(update_monitor_config(msg.get("monitors", [])))
             else:
                 logger.debug(f"Unhandled message type: {msg_type}")
 

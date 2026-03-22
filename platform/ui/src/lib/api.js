@@ -56,6 +56,7 @@ async function request(method, path, body, options = {}) {
 
 const get  = (path)        => request('GET', path)
 const post = (path, body)  => request('POST', path, body)
+const put  = (path, body)  => request('PUT', path, body)
 const del   = (path)        => request('DELETE', path)
 const patch = (path, body)  => request('PATCH', path, body)
 
@@ -143,15 +144,6 @@ export const api = {
     return get(`/v1/audit${q ? `?${q}` : ''}`)
   },
 
-  // ── Monitoring ────────────────────────────────────────────────────────────
-  getUptimeSummary: (hours = 24) => get(`/v1/monitoring/uptime?hours=${hours}`),
-  getDeviceUptime:  (id, hours = 24) => get(`/v1/monitoring/devices/${id}/uptime?hours=${hours}`),
-  getDeviceRtt:     (id, target, hours = 4) => get(`/v1/monitoring/devices/${id}/rtt?target=${encodeURIComponent(target)}&hours=${hours}`),
-  getMonitorTargets: (deviceId) =>
-    get(`/v1/monitoring/targets${deviceId ? `?device_id=${deviceId}` : ''}`),
-  createMonitorTarget: (body) => post('/v1/monitoring/targets', body),
-  deleteMonitorTarget: (id) => del(`/v1/monitoring/targets/${id}`),
-
   // ── Network Device History ────────────────────────────────────────────────
   getDiscoveredDevices:    ()              => get('/v1/network/discovered-devices'),
   getDiscoveredDevice:     (mac)           => get(`/v1/network/discovered-devices/${encodeURIComponent(mac)}/detail`),
@@ -168,8 +160,18 @@ export const api = {
   testAlert:         ()     => post('/v1/alerts/test', {}),
   testWebhook:       ()     => post('/v1/alerts/test-webhook', {}),
 
+  // ── Monitors ──────────────────────────────────────────────────────────────
+  getMonitors:      ()           => get('/v1/monitors'),
+  createMonitor:    (body)       => post('/v1/monitors', body),
+  updateMonitor:    (id, body)   => put(`/v1/monitors/${id}`, body),
+  deleteMonitor:    (id)         => del(`/v1/monitors/${id}`),
+  toggleMonitor:    (id)         => patch(`/v1/monitors/${id}/toggle`),
+  getMonitorChecks: (id, hours = 24) => get(`/v1/monitors/${id}/checks?hours=${hours}`),
+
   // ── Generic helpers ───────────────────────────────────────────────────────
   get:    (path) => get(path),
   post:   (path, body) => post(path, body),
+  put:    (path, body) => put(path, body),
   patch:  (path, body) => patch(path, body),
+  delete: (path) => del(path),
 }

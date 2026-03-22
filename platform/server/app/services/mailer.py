@@ -106,13 +106,18 @@ async def send_offline_alert(to: str, devices: list[dict]) -> None:
 async def send_findings_alert(to: str, findings: list[dict]) -> None:
     SEV_COLOR = {"critical": "#dc2626", "high": "#ea580c", "medium": "#d97706", "low": "#2563eb"}
     rows = "".join(
-        f"<tr><td style='padding:6px 8px;border-bottom:1px solid #f1f5f9'>"
-        f"<span style='color:{SEV_COLOR.get(f[\"severity\"], \"#64748b\")};font-weight:600;text-transform:uppercase;font-size:11px'>"
-        f"{f['severity']}</span></td>"
-        f"<td style='padding:6px 8px;border-bottom:1px solid #f1f5f9'>{f['title']}</td>"
-        f"<td style='padding:6px 8px;border-bottom:1px solid #f1f5f9;font-family:monospace;font-size:12px;color:#94a3b8'>"
-        f"{f.get('device_name') or f.get('device_id', '')[:8]}</td></tr>"
-        for f in findings
+        "<tr>"
+        "<td style='padding:6px 8px;border-bottom:1px solid #f1f5f9'>"
+        "<span style='color:{color};font-weight:600;text-transform:uppercase;font-size:11px'>{sev}</span></td>"
+        "<td style='padding:6px 8px;border-bottom:1px solid #f1f5f9'>{title}</td>"
+        "<td style='padding:6px 8px;border-bottom:1px solid #f1f5f9;font-family:monospace;font-size:12px;color:#94a3b8'>{dev}</td>"
+        "</tr>".format(
+            color=SEV_COLOR.get(finding["severity"], "#64748b"),
+            sev=finding["severity"],
+            title=finding["title"],
+            dev=(finding.get("device_name") or finding.get("device_id", "")[:8]),
+        )
+        for finding in findings
     )
     count = len(findings)
     body = f"""
@@ -129,6 +134,38 @@ async def send_findings_alert(to: str, findings: list[dict]) -> None:
   <tbody>{rows}</tbody>
 </table>"""
     await send_alert_email(to, f"[TekNaBox] {count} new security finding{'' if count==1 else 's'}", _wrap(body))
+
+
+async def send_monitor_alert(to: str, monitor, direction: str) -> None:
+    """Send a monitor down or recovery alert."""
+    name   = monitor.name
+    target = monitor.target
+    mon_type = str(monitor.type).upper()
+
+    if direction == "down":
+        subject = f"[TekNaBox] Monitor DOWN — {name}"
+        color   = "#dc2626"
+        heading = f"&#x1F534; {name} is DOWN"
+        detail  = f"<p style='color:#475569'><strong>{mon_type}</strong> check for <code>{target}</code> has failed {monitor.consecutive_failures} consecutive time(s).</p>"
+        if monitor.last_rtt_ms is None:
+            detail += f"<p style='color:#dc2626'>Error: {monitor.last_status or 'unreachable'}</p>"
+    else:
+        subject = f"[TekNaBox] Monitor UP — {name}"
+        color   = "#16a34a"
+        heading = f"&#x1F7E2; {name} has RECOVERED"
+        detail  = f"<p style='color:#475569'><strong>{mon_type}</strong> check for <code>{target}</code> is back up.</p>"
+        if monitor.last_rtt_ms is not None:
+            detail += f"<p style='color:#475569'>Response time: <strong>{monitor.last_rtt_ms:.1f}ms</strong></p>"
+
+    body = f"""
+<h2 style="margin:0 0 12px;color:{color}">{heading}</h2>
+{detail}
+<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
+  <tr><td style="padding:4px 8px;color:#64748b;width:120px">Monitor</td><td style="padding:4px 8px">{name}</td></tr>
+  <tr><td style="padding:4px 8px;color:#64748b">Type</td><td style="padding:4px 8px">{mon_type}</td></tr>
+  <tr><td style="padding:4px 8px;color:#64748b">Target</td><td style="padding:4px 8px"><code>{target}</code></td></tr>
+</table>"""
+    await send_alert_email(to, subject, _wrap(body))
 
 
 async def send_test_alert(to: str) -> None:

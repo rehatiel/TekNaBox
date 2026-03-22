@@ -60,9 +60,12 @@ function RunPanel({ devices, onResult }) {
     setError('')
     setRunning(true)
     try {
-      const urlList = urls.split('\n').map(u => u.trim()).filter(Boolean)
-      const payload = { urls: urlList, timeout: Number(timeout) }
-      if (contentMatch.trim()) payload.content_match = contentMatch.trim()
+      const match = contentMatch.trim()
+      const targets = urls.split('\n').map(u => u.trim()).filter(Boolean).map(url => ({
+        url, expected_status: 200, follow_redirects: true,
+        ...(match ? { content_match: match } : {}),
+      }))
+      const payload = { targets, timeout: Number(timeout) }
 
       const { task_id } = await api.issueTask(deviceId, {
         task_type: 'run_http_monitor',
@@ -139,7 +142,7 @@ function RunPanel({ devices, onResult }) {
 
 // ── Result Card ───────────────────────────────────────────────────────────────
 
-function ResultCard({ entry, onRerun }) {
+function ResultCard({ entry, onDismiss }) {
   const { task, deviceName } = entry
   const [expanded, setExpanded] = useState(true)
   const result = task.result || {}
@@ -177,6 +180,15 @@ function ResultCard({ entry, onRerun }) {
           {failed && <span className="text-xs text-red-DEFAULT capitalize">{task.status}</span>}
         </div>
         {expanded ? <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />}
+        {onDismiss && (
+          <button
+            onClick={e => { e.stopPropagation(); onDismiss(); }}
+            className="p-1 text-slate-600 hover:text-red-DEFAULT transition-colors rounded ml-1"
+            title="Dismiss"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {expanded && (
@@ -219,8 +231,8 @@ function ResultCard({ entry, onRerun }) {
                       }
                     </td>
                     <td className="px-4 py-2.5">
-                      {r.redirect_chain?.length
-                        ? <span className="text-xs text-slate-500">{r.redirect_chain.length} hop{r.redirect_chain.length > 1 ? 's' : ''}</span>
+                      {r.redirected
+                        ? <span className="text-xs text-amber-DEFAULT font-mono truncate max-w-[180px] block" title={r.final_url}>→ {r.final_url}</span>
                         : <span className="text-xs text-slate-600">—</span>
                       }
                     </td>
@@ -263,7 +275,8 @@ export default function HttpMonitorPage() {
 
   useEffect(() => { load() }, [load])
 
-  const addResult = (entry) => setResults(r => [entry, ...r])
+  const addResult    = (entry) => setResults(r => [entry, ...r])
+  const dismissResult = (taskId) => setResults(r => r.filter(e => e.task.id !== taskId))
 
   if (loading) return <div className="flex items-center justify-center h-64"><Spinner /></div>
 
@@ -287,7 +300,7 @@ export default function HttpMonitorPage() {
         <div className="space-y-3">
           <h2 className="font-display font-600 text-slate-400 text-sm uppercase tracking-wider">Recent Results</h2>
           {results.map((entry, i) => (
-            <ResultCard key={entry.task.id ?? i} entry={entry} />
+            <ResultCard key={entry.task.id ?? i} entry={entry} onDismiss={() => dismissResult(entry.task.id)} />
           ))}
         </div>
       ) : (

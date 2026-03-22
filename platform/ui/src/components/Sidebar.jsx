@@ -4,9 +4,9 @@ import { useAuth } from '../hooks/useAuth'
 import {
   LayoutDashboard, Monitor, CheckSquare, Users,
   Building2, MapPin, PackageOpen, ScrollText,
-  LogOut, Radio, ChevronRight, ChevronLeft, Activity, UserCog,
+  LogOut, Radio, ChevronRight, ChevronLeft, UserCog,
   ShieldAlert, ShieldCheck, Wifi, FileText, BookOpen, Network,
-  BookMarked, Wrench, History, Globe, Search, Bell,
+  BookMarked, Wrench, History, Globe, Search, Bell, Activity,
 } from 'lucide-react'
 
 const NAV = [

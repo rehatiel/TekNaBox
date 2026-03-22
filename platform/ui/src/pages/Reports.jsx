@@ -1600,7 +1600,11 @@ function WindowsProbeReport({ result, payload, deviceId }) {
   )
 }
 
-function AdReconReport({ result }) {
+function AdReconReport({ result, deviceId }) {
+  const [creds,     setCreds]     = useState({ username: '', password: '', port: '5985' })
+  const [bulkState, setBulkState] = useState(null)  // null | 'loading' | {queued, skipped} | 'error'
+  const [bulkMsg,   setBulkMsg]   = useState('')
+
   if (!result) return null
   const {
     domain = {}, users = [], computers = [], groups = [],
@@ -1615,6 +1619,30 @@ function AdReconReport({ result }) {
     ...(delegation.unconstrained_computers || []),
     ...(delegation.unconstrained_users     || []),
   ]
+
+  const computerList = (computers.list || computers || []).filter(c => c.enabled && (c.dns_hostname || c.name))
+
+  const probeAll = async () => {
+    if (!deviceId) { setBulkState('error'); setBulkMsg('No agent device ID — cannot dispatch tasks.'); return }
+    if (!creds.username || !creds.password) { setBulkState('error'); setBulkMsg('Username and password are required.'); return }
+    if (!computerList.length) { setBulkState('error'); setBulkMsg('No enabled computers found in this AD Recon result.'); return }
+    setBulkState('loading')
+    setBulkMsg('')
+    let queued = 0, skipped = 0
+    for (const comp of computerList) {
+      const target = comp.dns_hostname || comp.name
+      if (!target) { skipped++; continue }
+      try {
+        await api.issueTask(deviceId, {
+          task_type: 'run_windows_probe',
+          payload: { target, username: creds.username, password: creds.password, port: parseInt(creds.port || '5985', 10) },
+        })
+        queued++
+      } catch { skipped++ }
+    }
+    setBulkState({ queued, skipped })
+    setCreds(c => ({ ...c, password: '' }))
+  }
 
   const SEV = (count, warn, crit) => count >= crit ? 'text-red-DEFAULT' : count >= warn ? 'text-amber-DEFAULT' : 'text-green-DEFAULT'
 
@@ -1733,6 +1761,64 @@ function AdReconReport({ result }) {
           </Table>
         </div>
       )}
+
+      {/* Probe all domain computers */}
+      {deviceId && computerList.length > 0 && (
+        <div className="card px-4 py-4">
+          <p className="text-xs font-display font-600 text-slate-400 mb-1">Windows Probe — All Domain Computers</p>
+          <p className="text-xs text-slate-600 mb-3">
+            Queue a WinRM probe against all {computerList.length} enabled computer{computerList.length !== 1 ? 's' : ''} in this domain.
+            Use domain admin credentials or a local admin account present on all machines.
+          </p>
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div>
+              <label className="label mb-1">Username</label>
+              <input
+                className="input w-full py-1.5 text-xs"
+                placeholder="DOMAIN\Administrator"
+                value={creds.username}
+                onChange={e => setCreds(c => ({ ...c, username: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="label mb-1">Password</label>
+              <input
+                type="password"
+                className="input w-full py-1.5 text-xs"
+                placeholder=""
+                value={creds.password}
+                onChange={e => setCreds(c => ({ ...c, password: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="label mb-1">WinRM Port</label>
+              <input
+                className="input w-full py-1.5 text-xs"
+                placeholder="5985"
+                value={creds.port}
+                onChange={e => setCreds(c => ({ ...c, port: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={probeAll}
+              disabled={bulkState === 'loading'}
+              className="text-xs px-4 py-1.5 rounded bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 transition-colors disabled:opacity-50"
+            >
+              {bulkState === 'loading' ? 'Queueing…' : `Probe All ${computerList.length} Computers`}
+            </button>
+            {bulkState && bulkState !== 'loading' && (
+              <span className={`text-xs ${bulkState === 'error' ? 'text-red-400' : 'text-green-400'}`}>
+                {bulkState === 'error'
+                  ? bulkMsg
+                  : `✓ Queued ${bulkState.queued} task${bulkState.queued !== 1 ? 's' : ''}${bulkState.skipped ? ` (${bulkState.skipped} skipped)` : ''} — check Tasks page`
+                }
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1777,7 +1863,7 @@ function ReportRenderer({ task }) {
     case 'run_email_breach':         return <EmailBreachReport        result={result} payload={payload} />
     // Active Directory
     case 'run_ad_discover':          return <AdDiscoverReport         result={result} payload={payload} />
-    case 'run_ad_recon':             return <AdReconReport            result={result} payload={payload} />
+    case 'run_ad_recon':             return <AdReconReport            result={result} payload={payload} deviceId={task.device_id} />
     // Agentless Windows
     case 'run_windows_probe':        return <WindowsProbeReport       result={result} payload={payload} deviceId={task.device_id} />
     default:
