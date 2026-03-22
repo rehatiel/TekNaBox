@@ -32,16 +32,18 @@ A self-hosted Remote Monitoring & Management (RMM) platform built for Managed Se
 ### Security & Auditing
 - Findings workflow with acknowledge/delete and severity levels (critical → info)
 - Write-once audit log (PostgreSQL RULE prevents UPDATE/DELETE)
-- JWT authentication with rate limiting on sensitive endpoints
+- JWT authentication with MFA support and rate limiting on sensitive endpoints
 - Security Hub for on-demand scans across multiple task types
 
 ### Live Sessions
 - **Browser terminal** — full xterm.js shell bridged over WebSocket to the remote agent
 - **Bandwidth monitor** — real-time throughput graphs streamed from the agent
 
-### Monitoring
-- Uptime monitoring with configurable targets and RTT history charts
-- Device online/offline timeline
+### Uptime Monitoring
+- Agent-based checks — ping, TCP port, HTTP(S), and DNS monitors run directly from the device
+- Uptime Kuma-style dashboard: 60-tick history bar, live status, per-monitor RTT charts
+- Metrics: uptime %, average RTT, jitter, packet loss, SSL certificate expiry
+- Email alerts when a monitor goes down or recovers
 
 ### Reporting
 - Reports page with dedicated renderers for all major task types
@@ -138,38 +140,29 @@ The agent installs as a systemd service, enrolls once, and maintains a persisten
 
 ## Development
 
-### Backend
+All development is done through Docker. Rebuild individual services after code changes:
 
 ```bash
 cd platform
-# Rebuild and restart after code changes
+
+# Rebuild a specific service
 docker compose build api && docker compose up -d api
+docker compose build ui && docker compose up -d ui
 
 # Tail logs
 docker compose logs -f api
+docker compose logs -f ui
 
-# Enable Swagger docs (set in .env)
-ENVIRONMENT=development
-# Then visit http://localhost:8005/docs
+# Enable Swagger docs — set ENVIRONMENT=development in server/.env, then:
+# http://localhost:8005/docs
 ```
 
-Run the integration test suite (19 steps — health, auth, enroll, task dispatch, updates, audit):
+Run the integration test suite (health, auth, enroll, task dispatch, updates, audit):
 
 ```bash
 cd platform/server
-python test_flow.py --base-url http://localhost:8000
+python test_flow.py --base-url http://localhost:8005
 ```
-
-### Frontend
-
-```bash
-cd platform/ui
-npm install
-npm run dev   # Dev server on :5173, proxies /v1 to localhost:8005
-npm run build # Production build → dist/
-```
-
-> **Note:** All JavaScript libraries must be bundled locally — no CDN links. The deployment environment has restricted outbound network access.
 
 ---
 
@@ -200,14 +193,14 @@ teknabox/
 │   │   │   ├── api/v1/          # FastAPI routers
 │   │   │   ├── core/            # Auth, config, database, security
 │   │   │   ├── models/          # SQLAlchemy ORM models
-│   │   │   ├── services/        # Connection manager, audit
+│   │   │   ├── services/        # Connection manager, audit, mailer
 │   │   │   └── workers/         # Celery tasks
 │   └── ui/
 │       └── src/
 │           ├── components/      # Shared UI primitives + Sidebar
 │           ├── hooks/           # useAuth, useTheme, useTaskPoll
 │           ├── lib/             # api.js fetch wrapper
-│           └── pages/           # One file per page (20 pages)
+│           └── pages/           # One file per page (22 pages)
 └── agent/
     ├── agent.py                 # asyncio entry point
     ├── core/                    # Connection, dispatcher, monitor, terminal, bandwidth, updater

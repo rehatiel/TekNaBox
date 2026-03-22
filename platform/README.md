@@ -1,118 +1,110 @@
 # TekNaBox — Platform
 
-Complete deployment package — API + Worker + UI + Database + Cache.
+Complete Docker deployment — API + Worker + UI + Database + Cache.
 
 ## Directory Structure
 
 ```
-msp-platform/
+platform/
 ├── docker-compose.yml    ← Single compose file for everything
 ├── .env                  ← Your secrets (copy from .env.example)
 ├── .env.example
-├── msp-server/           ← FastAPI backend (copy from msp-server.zip)
+├── server/               ← FastAPI backend
 │   ├── app/
-│   ├── docker/
-│   │   └── Dockerfile.api
-│   └── ...
-└── msp-ui/               ← React frontend (copy from msp-ui.zip)
+│   └── Dockerfile
+└── ui/                   ← React frontend
     ├── src/
-    ├── docker/
-    │   └── nginx.conf
-    ├── Dockerfile
-    └── ...
+    ├── nginx.conf
+    └── Dockerfile
 ```
 
 ## First-Time Setup
 
 ```bash
-# 1. Create the platform directory
-mkdir msp-platform && cd msp-platform
+cd platform
 
-# 2. Extract both zips here
-unzip msp-server.zip
-unzip msp-ui.zip
+# 1. Create your .env file
+cp server/.env.example server/.env
+# Edit server/.env — fill in passwords, generate SECRET_KEY:
+# python3 -c "import secrets; print(secrets.token_hex(32))"
 
-# 3. Copy this docker-compose.yml and .env.example here too
-
-# 4. Create your .env file
-cp .env.example .env
-nano .env   # Fill in strong passwords and generated secrets
-
-# Generate secrets with:
-python3 -c "import secrets; print(secrets.token_hex(32))"
-
-# 5. Build and start
+# 2. Build and start
 docker compose build
 docker compose up -d
 
-# 6. Check everything is running
+# 3. Verify everything is running
 docker compose ps
-docker compose logs ui --tail=20
+docker compose logs api --tail=20
 ```
 
 ## Services
 
-| Service | Internal | External | Purpose |
-|---------|----------|----------|---------|
-| `ui`    | port 80  | **3000** | nginx — serves React UI + proxies /v1 to API |
-| `api`   | port 8000| none     | FastAPI backend (internal only) |
-| `worker`| —        | none     | Background task processor |
-| `db`    | port 5432| none     | PostgreSQL (internal only) |
-| `redis` | port 6379| none     | Redis pub/sub (internal only) |
-
-Only **port 3000** is exposed. Everything else is internal.
+| Service  | Host Port | Purpose |
+|----------|-----------|---------|
+| `ui`     | **3005**  | nginx — serves React UI + proxies `/v1` to API |
+| `api`    | **8005**  | FastAPI backend |
+| `worker` | —         | Celery background task processor |
+| `db`     | internal  | PostgreSQL 16 |
+| `redis`  | internal  | Redis 7 — Celery broker + pub/sub |
 
 ## Nginx Proxy Manager Setup
 
-Point NPM at the `ui` service on port 3000:
+Two proxy host entries:
 
+**UI (web dashboard)**
 ```
 Domain:       yourserver.com
-Forward Host: <your-host-ip>
-Forward Port: 3000
-WebSockets:   ✅ Enabled   ← Critical for Pi device connections
-SSL:          Let's Encrypt (NPM handles it)
+Forward Host: <server-ip>
+Forward Port: 3005
+WebSockets:   ✅ Enabled
+SSL:          Let's Encrypt
 ```
 
-That's it — one NPM entry handles both the web UI and WebSocket device connections.
+**API (agent WebSocket connections)**
+```
+Domain:       tekn-api.yourserver.com
+Forward Host: <server-ip>
+Forward Port: 8005
+WebSockets:   ✅ Enabled  ← Critical for agent connections
+SSL:          Let's Encrypt
+```
 
-## Pi Agent Installation
+> WebSocket support must be enabled on the API proxy host or agent connections will fail.
 
-Once NPM is configured with your domain:
+## Agent Installation
+
+Once your domain is configured, enroll a device:
+
+1. In the UI: **Devices → Add Device** — creates an enrollment record and provides a secret.
+2. On the target Linux device:
 
 ```bash
-# On the server — create a device slot first
-curl -s -X POST https://yourserver.com/v1/devices \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"pi-zero-01","site_id":"<site_id>","role":"diagnostic"}' \
-  | python3 -m json.tool
-
-# On the Pi
-sudo bash install.sh \
-  --server https://yourserver.com \
+scp -r agent/ user@device:/home/user/
+ssh user@device
+sudo bash /home/user/agent/install.sh \
+  --server https://tekn-api.yourserver.com \
   --secret <enrollment_secret>
 ```
+
+The agent installs as a systemd service (`teknabox-agent`) and connects outbound only.
 
 ## Useful Commands
 
 ```bash
-# View all logs
+# View logs
 docker compose logs -f
-
-# View specific service
 docker compose logs api -f
-docker compose logs ui -f
+
+# Rebuild and restart a service after code changes
+docker compose build api && docker compose up -d api
+docker compose build ui && docker compose up -d ui
 
 # Restart a service
 docker compose restart api
 
-# Rebuild after code changes
-docker compose build ui && docker compose up -d ui
-
 # Stop everything
 docker compose down
 
-# Stop and wipe database (careful!)
+# Stop and wipe database (destructive)
 docker compose down -v
 ```
