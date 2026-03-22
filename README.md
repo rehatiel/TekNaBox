@@ -41,7 +41,7 @@ A self-hosted Remote Monitoring & Management (RMM) platform built for Managed Se
 
 ### Uptime Monitoring
 - Agent-based checks — ping, TCP port, HTTP(S), and DNS monitors run directly from the device
-- Uptime Kuma-style dashboard: 60-tick history bar, live status, per-monitor RTT charts
+- Uptime Monitor: 60-tick history bar, live status, per-monitor RTT charts
 - Metrics: uptime %, average RTT, jitter, packet loss, SSL certificate expiry
 - Email alerts when a monitor goes down or recovers
 
