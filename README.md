@@ -91,7 +91,7 @@ The agent connects **outbound only** — no inbound ports are required on the cl
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/yourname/teknabox.git
+git clone https://github.com/rehatiel/TekNaBox.git
 cd teknabox/platform
 cp server/.env.example server/.env
 ```
