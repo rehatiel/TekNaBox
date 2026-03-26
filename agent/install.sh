@@ -15,6 +15,9 @@
 
 set -euo pipefail
 
+# Suppress all interactive package configuration prompts
+export DEBIAN_FRONTEND=noninteractive
+
 # ── Colours ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 info()    { echo -e "${GREEN}[INFO]${NC} $*"; }
@@ -196,6 +199,8 @@ apt-get install -y --no-install-recommends \
 
 # Packet analysis + live bandwidth monitoring
 info "Installing packet analysis tools..."
+# Pre-answer the wireshark/tshark "allow non-superusers to capture?" prompt
+echo "wireshark-common wireshark-common/install-setuid boolean false" | debconf-set-selections
 apt-get install -y --no-install-recommends \
     tshark \
     tcpdump \
@@ -231,21 +236,32 @@ info "Installing Python dependencies from requirements.txt..."
 SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REQS_FILE="$SCRIPT_DIR_EARLY/requirements.txt"
 
+_pip_install() {
+    # Try --break-system-packages (Python 3.11+ / Debian 12+) then fall back
+    pip3 install --quiet --break-system-packages "$@" 2>/dev/null || \
+    pip3 install --quiet "$@" 2>/dev/null
+}
+
 if [[ -f "$REQS_FILE" ]]; then
-    # Try --break-system-packages first (Python 3.11+ / Debian 12+), fall back
-    pip3 install --quiet --break-system-packages -r "$REQS_FILE" 2>/dev/null || \
-    pip3 install --quiet -r "$REQS_FILE" 2>/dev/null || \
-        error "Failed to install Python packages from requirements.txt"
-    info "Python packages installed from requirements.txt"
+    # Install the one required package first so we can fail clearly if it's missing
+    _pip_install websockets || error "Failed to install required Python package: websockets"
+    info "Core Python package (websockets) installed ✓"
+
+    # Optional packages — each tried individually; a failure is a warning, not fatal
+    for opt_pkg in impacket speedtest-cli scapy pywinrm; do
+        if _pip_install "$opt_pkg"; then
+            info "  Optional: $opt_pkg installed ✓"
+        else
+            warn "  Optional: $opt_pkg failed to install — related tasks will degrade gracefully"
+        fi
+    done
 else
     warn "requirements.txt not found — installing core packages manually"
-    pip3 install --quiet --break-system-packages websockets 2>/dev/null || \
-    pip3 install --quiet websockets 2>/dev/null || \
-        error "Failed to install websockets"
+    _pip_install websockets || error "Failed to install websockets"
 
-    pip3 install --quiet --break-system-packages speedtest-cli impacket 2>/dev/null || \
-    pip3 install --quiet speedtest-cli impacket 2>/dev/null || \
-        warn "Optional packages (speedtest-cli, impacket) install failed"
+    for opt_pkg in impacket speedtest-cli scapy pywinrm; do
+        _pip_install "$opt_pkg" || warn "Optional: $opt_pkg not installed"
+    done
 fi
 
 # Enable SNMP MIBs (Debian/Ubuntu disables them by default)
