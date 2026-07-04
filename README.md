@@ -4,6 +4,31 @@ A self-hosted Remote Monitoring & Management (RMM) platform built for Managed Se
 
 ---
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Devices](docs/screenshots/devices.png) |
+| **Dashboard** — fleet health, open findings, and recent activity at a glance | **Devices** — status, health, and version across every enrolled device |
+| ![Security Findings](docs/screenshots/findings.png) | ![Uptime Monitoring](docs/screenshots/uptime-monitoring.png) |
+| **Security Findings** — CVEs and misconfigurations surfaced across all devices | **Uptime Monitoring** — agent-based ping/TCP/HTTP/DNS checks with history bars |
+| ![Reports](docs/screenshots/reports.png) | ![Network Device History](docs/screenshots/network-history.png) |
+| **Reports** — full timeline of every task dispatched to every device | **Network Device History** — persistent record of every device seen on scans |
+
+<details>
+<summary>More screenshots (Security Hub, Tasks, Login)</summary>
+
+| | |
+|---|---|
+| ![Security Hub](docs/screenshots/security-hub.png) | ![Tasks](docs/screenshots/tasks.png) |
+| **Security Hub** — on-demand SSL, DNS, default-creds, and SMB checks | **Tasks** — queued, running, completed, and failed task history |
+| ![Login](docs/screenshots/login.png) | |
+| **Login** | |
+
+</details>
+
+---
+
 ## Features
 
 ### Device Management
