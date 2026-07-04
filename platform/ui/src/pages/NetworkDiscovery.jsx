@@ -444,7 +444,7 @@ function DeviceDetail({ device, onClose, isNew, onForget, onMarkKnown }) {
         padding: '10px 14px', borderBottom: '1px solid var(--bg-border)',
         background: isNew ? 'var(--green-dim)' : 'var(--bg-elevated)',
       }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: isNew ? 'var(--green-DEFAULT)' : 'var(--input-text)', fontFamily: 'JetBrains Mono, monospace' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: isNew ? 'var(--green-DEFAULT)' : 'var(--input-text)', fontFamily: 'IBM Plex Mono, monospace' }}>
           {device.ip || device.mac}
         </span>
         <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--label-color)', padding: 2, display: 'flex' }}>
@@ -454,8 +454,8 @@ function DeviceDetail({ device, onClose, isNew, onForget, onMarkKnown }) {
       <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {rows.map(([k, v]) => (
           <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'nowrap' }}>{k}</span>
-            <span style={{ fontSize: 11, color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace', textAlign: 'right', wordBreak: 'break-all' }}>{v}</span>
+            <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'IBM Plex Mono, monospace', whiteSpace: 'nowrap' }}>{k}</span>
+            <span style={{ fontSize: 11, color: 'var(--btn-ghost-color)', fontFamily: 'IBM Plex Mono, monospace', textAlign: 'right', wordBreak: 'break-all' }}>{v}</span>
           </div>
         ))}
       </div>
@@ -642,7 +642,7 @@ function ReportModal({ discovered, lastScan, onClose }) {
         <pre style={{
           flex: 1, overflowY: 'auto', margin: 0,
           padding: '16px 20px', fontSize: 11.5, lineHeight: 1.6,
-          color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, Consolas, monospace',
+          color: 'var(--btn-ghost-color)', fontFamily: 'IBM Plex Mono, Consolas, monospace',
           whiteSpace: 'pre', background: '#070a0e',
         }}>
           {content}
@@ -894,7 +894,7 @@ export default function NetworkDiscoveryPage() {
             { label: 'New devices',      value: newMacs.size,      color: '#f59e0b' },
           ].map(s => (
             <div key={s.label} style={{ background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 8, padding: '12px 16px' }}>
-              <div style={{ fontSize: 24, fontWeight: 700, color: s.color, fontFamily: 'JetBrains Mono, monospace' }}>{s.value}</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: s.color, fontFamily: 'IBM Plex Mono, monospace' }}>{s.value}</div>
               <div style={{ fontSize: 11, color: 'var(--label-color)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
             </div>
           ))}
@@ -968,7 +968,7 @@ export default function NetworkDiscoveryPage() {
               )}
             </div>
             <div style={{ overflowY: 'auto', maxHeight: 320 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'IBM Plex Mono, monospace' }}>
                 <thead>
                   <tr style={{ position: 'sticky', top: 0, background: 'var(--bg-surface)' }}>
                     {['', 'IP', 'MAC', 'Vendor', 'Last seen', ''].map((h, i) => (
@@ -1046,11 +1046,11 @@ const labelStyle = {
 const selectStyle = {
   background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
   color: 'var(--input-text)', padding: '6px 10px', fontSize: 13,
-  fontFamily: 'JetBrains Mono, monospace', outline: 'none',
+  fontFamily: 'IBM Plex Mono, monospace', outline: 'none',
 }
 
 const inputStyle = {
   background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
   color: 'var(--input-text)', padding: '6px 10px', fontSize: 13,
-  fontFamily: 'JetBrains Mono, monospace', outline: 'none',
+  fontFamily: 'IBM Plex Mono, monospace', outline: 'none',
 }

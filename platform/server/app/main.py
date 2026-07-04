@@ -11,6 +11,7 @@ import structlog
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -33,6 +34,12 @@ structlog.configure(
 )
 
 logger = structlog.get_logger()
+
+# uvicorn --workers spawns multiple processes that each run the lifespan
+# startup hook below. Postgres CREATE TYPE has no IF NOT EXISTS, so without
+# this lock concurrent workers race create_all()'s checkfirst and crash with
+# duplicate-key errors on pg_type when starting against an empty database.
+_SCHEMA_INIT_LOCK_ID = 727401
 
 
 async def _auto_bootstrap():
@@ -90,15 +97,23 @@ async def _apply_column_additions():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables — checkfirst=True prevents errors on restart
-    async with engine.begin() as conn:
-        await conn.run_sync(lambda c: Base.metadata.create_all(c, checkfirst=True))
+    # Serialize schema init across concurrent uvicorn workers — see
+    # _SCHEMA_INIT_LOCK_ID comment above.
+    lock_conn = await engine.connect()
+    await lock_conn.execute(text("SELECT pg_advisory_lock(:id)"), {"id": _SCHEMA_INIT_LOCK_ID})
+    try:
+        # Create tables — checkfirst=True prevents errors on restart
+        async with engine.begin() as conn:
+            await conn.run_sync(lambda c: Base.metadata.create_all(c, checkfirst=True))
 
-    # Add any new columns to existing tables
-    await _apply_column_additions()
+        # Add any new columns to existing tables
+        await _apply_column_additions()
 
-    # Auto-bootstrap super admin from env vars
-    await _auto_bootstrap()
+        # Auto-bootstrap super admin from env vars
+        await _auto_bootstrap()
+    finally:
+        await lock_conn.execute(text("SELECT pg_advisory_unlock(:id)"), {"id": _SCHEMA_INIT_LOCK_ID})
+        await lock_conn.close()
 
     # Start Redis subscriber for cross-worker WebSocket relay
     subscriber_task = asyncio.create_task(start_redis_subscriber())

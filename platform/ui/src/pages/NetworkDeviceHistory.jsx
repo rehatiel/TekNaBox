@@ -60,7 +60,7 @@ function LabelCell({ device, onSave }) {
           style={{
             background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 4,
             color: 'var(--input-text)', padding: '2px 6px', fontSize: 11,
-            fontFamily: 'JetBrains Mono, monospace', width: 110, outline: 'none',
+            fontFamily: 'IBM Plex Mono, monospace', width: 110, outline: 'none',
           }}
         />
         <button onClick={commit} style={iconBtn}><Check size={10} color="#22c55e" /></button>
@@ -76,7 +76,7 @@ function LabelCell({ device, onSave }) {
       style={{
         display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer',
         color: device.label ? 'var(--btn-ghost-color)' : 'var(--label-color)',
-        fontSize: 11, fontFamily: 'JetBrains Mono, monospace',
+        fontSize: 11, fontFamily: 'IBM Plex Mono, monospace',
       }}
     >
       {device.label || <span style={{ color: 'var(--bg-border)' }}>—</span>}
@@ -125,7 +125,7 @@ function ScanModal({ device, onClose, onStart }) {
           </button>
         </div>
 
-        <div style={{ fontSize: 12, color: 'var(--label-color)', marginBottom: 16, fontFamily: 'JetBrains Mono, monospace' }}>
+        <div style={{ fontSize: 12, color: 'var(--label-color)', marginBottom: 16, fontFamily: 'IBM Plex Mono, monospace' }}>
           Target: <span style={{ color: '#06b6d4' }}>{device.ip || '—'}</span>
           {device.label && <span style={{ color: 'var(--btn-ghost-color)' }}> ({device.label})</span>}
         </div>
@@ -143,7 +143,7 @@ function ScanModal({ device, onClose, onStart }) {
             width: '100%', boxSizing: 'border-box',
             background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
             color: 'var(--input-text)', padding: '8px 10px', fontSize: 12,
-            fontFamily: 'JetBrains Mono, monospace', outline: 'none', marginBottom: 8,
+            fontFamily: 'IBM Plex Mono, monospace', outline: 'none', marginBottom: 8,
           }}
         />
         <div style={{ fontSize: 11, color: 'var(--label-color)', marginBottom: 16 }}>
@@ -196,7 +196,7 @@ function PortsExpanded({ device, colSpan }) {
             </span>
           </div>
           {ports.length === 0 ? (
-            <span style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>
+            <span style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'IBM Plex Mono, monospace' }}>
               No open ports found
             </span>
           ) : (
@@ -205,7 +205,7 @@ function PortsExpanded({ device, colSpan }) {
                 <span key={port} style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5,
                   background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 5,
-                  padding: '3px 8px', fontSize: 11, fontFamily: 'JetBrains Mono, monospace',
+                  padding: '3px 8px', fontSize: 11, fontFamily: 'IBM Plex Mono, monospace',
                   color: 'var(--input-text)',
                 }}>
                   <span style={{ color: '#06b6d4', fontWeight: 600 }}>{port}</span>
@@ -405,7 +405,7 @@ export default function NetworkDeviceHistoryPage() {
           { label: 'Unknown',        value: unknown, color: '#f59e0b' },
         ].map(s => (
           <div key={s.label} style={{ background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 8, padding: '12px 16px' }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: s.color, fontFamily: 'JetBrains Mono, monospace' }}>{s.value}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: s.color, fontFamily: 'IBM Plex Mono, monospace' }}>{s.value}</div>
             <div style={{ fontSize: 11, color: 'var(--label-color)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
           </div>
         ))}
@@ -426,7 +426,7 @@ export default function NetworkDeviceHistoryPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search IP, MAC, vendor…"
-            style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--input-text)', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', width: '100%' }}
+            style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--input-text)', fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', width: '100%' }}
           />
           {search && (
             <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--label-color)', padding: 0, display: 'flex' }}>
@@ -471,7 +471,7 @@ export default function NetworkDeviceHistoryPage() {
       ) : (
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 10, overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'IBM Plex Mono, monospace' }}>
               <thead>
                 <tr style={{ background: 'var(--bg-base)', borderBottom: '1px solid var(--bg-border)' }}>
                   {['', 'IP', 'MAC', 'Vendor', 'Label', 'Ports', 'First seen', 'Last seen', ''].map((h, i) => (

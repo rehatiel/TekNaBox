@@ -9,26 +9,51 @@ import {
   BookMarked, Wrench, History, Globe, Search, Bell, Activity,
 } from 'lucide-react'
 
-const NAV = [
-  { to: '/',           icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/devices',    icon: Monitor,         label: 'Devices' },
-  { to: '/tasks',      icon: CheckSquare,     label: 'Tasks' },
-  { to: '/monitoring', icon: Activity,        label: 'Monitoring' },
-  { to: '/findings',   icon: ShieldAlert,     label: 'Findings' },
-  { to: '/security',   icon: ShieldCheck,     label: 'Security Hub' },
-  { to: '/network',         icon: Network,  label: 'Network Discovery' },
-  { to: '/network-history', icon: History,  label: 'Device History' },
-  { to: '/network-tools',   icon: Wrench,   label: 'Network Tools' },
-  { to: '/http-monitor',    icon: Globe,    label: 'HTTP Monitor' },
-  { to: '/wireless',   icon: Radio,           label: 'Wireless Survey' },
-  { to: '/snmp',       icon: Wifi,            label: 'SNMP' },
-  { to: '/ad-report',  icon: BookMarked,      label: 'AD Report' },
-  { to: '/reports',    icon: FileText,        label: 'Reports' },
-  { to: '/changelog',  icon: BookOpen,        label: 'Changelog' },
-  { to: '/customers',  icon: Building2,       label: 'Customers' },
-  { to: '/sites',      icon: MapPin,          label: 'Sites' },
-  { to: '/releases',   icon: PackageOpen,     label: 'Releases' },
-  { to: '/audit',      icon: ScrollText,      label: 'Audit Log' },
+const NAV_GROUPS = [
+  {
+    label: 'Overview',
+    items: [
+      { to: '/',           icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/devices',    icon: Monitor,         label: 'Devices' },
+      { to: '/tasks',      icon: CheckSquare,     label: 'Tasks' },
+      { to: '/monitoring', icon: Activity,        label: 'Monitoring' },
+    ],
+  },
+  {
+    label: 'Security',
+    items: [
+      { to: '/findings',   icon: ShieldAlert,     label: 'Findings' },
+      { to: '/security',   icon: ShieldCheck,     label: 'Security Hub' },
+    ],
+  },
+  {
+    label: 'Network',
+    items: [
+      { to: '/network',         icon: Network,  label: 'Network Discovery' },
+      { to: '/network-history', icon: History,  label: 'Device History' },
+      { to: '/network-tools',   icon: Wrench,   label: 'Network Tools' },
+      { to: '/http-monitor',    icon: Globe,    label: 'HTTP Monitor' },
+      { to: '/wireless',        icon: Radio,    label: 'Wireless Survey' },
+      { to: '/snmp',            icon: Wifi,     label: 'SNMP' },
+    ],
+  },
+  {
+    label: 'Reporting',
+    items: [
+      { to: '/ad-report',  icon: BookMarked,      label: 'AD Report' },
+      { to: '/reports',    icon: FileText,        label: 'Reports' },
+      { to: '/changelog',  icon: BookOpen,        label: 'Changelog' },
+    ],
+  },
+  {
+    label: 'Organization',
+    items: [
+      { to: '/customers',  icon: Building2,       label: 'Customers' },
+      { to: '/sites',      icon: MapPin,          label: 'Sites' },
+      { to: '/releases',   icon: PackageOpen,     label: 'Releases' },
+      { to: '/audit',      icon: ScrollText,      label: 'Audit Log' },
+    ],
+  },
 ]
 
 const ADMIN_NAV = [
@@ -66,9 +91,11 @@ export default function Sidebar({ onSearchOpen }) {
     `flex items-center gap-2.5 px-2 py-2 rounded text-sm transition-all duration-150 group
      ${collapsed ? 'justify-center' : ''}
      ${isActive
-       ? 'bg-cyan-dim text-cyan-bright font-display font-500'
+       ? 'bg-primary-dim text-primary-bright font-display font-500'
        : 'text-slate-500 hover:text-slate-300 hover:bg-bg-elevated'
      }`
+
+  const groupLabelClass = 'font-display text-xs font-500 text-slate-700 uppercase tracking-widest'
 
   return (
     <aside
@@ -88,8 +115,8 @@ export default function Sidebar({ onSearchOpen }) {
 
       {/* Logo + search */}
       <div className="px-3 py-4 border-b border-bg-border flex items-center gap-2 min-h-[57px]">
-        <div className="w-7 h-7 rounded bg-cyan-DEFAULT flex items-center justify-center shrink-0">
-          <Radio className="w-4 h-4 text-bg-base" />
+        <div className="w-7 h-7 rounded bg-primary-DEFAULT flex items-center justify-center shrink-0">
+          <Radio className="w-4 h-4 text-primary-fg" />
         </div>
         {!collapsed && (
           <>
@@ -118,22 +145,30 @@ export default function Sidebar({ onSearchOpen }) {
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-        {NAV.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            title={collapsed ? label : undefined}
-            className={navLinkClass}
-          >
-            {({ isActive }) => (
-              <>
-                <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-cyan-DEFAULT' : 'text-slate-600 group-hover:text-slate-400'}`} />
-                {!collapsed && <span>{label}</span>}
-                {!collapsed && isActive && <ChevronRight className="w-3 h-3 ml-auto text-cyan-muted" />}
-              </>
+        {NAV_GROUPS.map(({ label: groupLabel, items }, gi) => (
+          <div key={groupLabel}>
+            {!collapsed && (
+              <div className={`px-2 pb-1 ${gi === 0 ? 'pt-1' : 'pt-3'} ${groupLabelClass}`}>{groupLabel}</div>
             )}
-          </NavLink>
+            {collapsed && gi > 0 && <div className="border-t border-bg-border my-2 mx-1" />}
+            {items.map(({ to, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/'}
+                title={collapsed ? label : undefined}
+                className={navLinkClass}
+              >
+                {({ isActive }) => (
+                  <>
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary-DEFAULT' : 'text-slate-600 group-hover:text-slate-400'}`} />
+                    {!collapsed && <span>{label}</span>}
+                    {!collapsed && isActive && <ChevronRight className="w-3 h-3 ml-auto text-primary-muted" />}
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </div>
         ))}
 
         {isAdmin && (
@@ -148,7 +183,7 @@ export default function Sidebar({ onSearchOpen }) {
               <NavLink key={to} to={to} title={collapsed ? label : undefined} className={navLinkClass}>
                 {({ isActive }) => (
                   <>
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-cyan-DEFAULT' : 'text-slate-600 group-hover:text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary-DEFAULT' : 'text-slate-600 group-hover:text-slate-400'}`} />
                     {!collapsed && <span>{label}</span>}
                   </>
                 )}
@@ -169,7 +204,7 @@ export default function Sidebar({ onSearchOpen }) {
               <NavLink key={to} to={to} title={collapsed ? label : undefined} className={navLinkClass}>
                 {({ isActive }) => (
                   <>
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-cyan-DEFAULT' : 'text-slate-600 group-hover:text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary-DEFAULT' : 'text-slate-600 group-hover:text-slate-400'}`} />
                     {!collapsed && <span>{label}</span>}
                   </>
                 )}

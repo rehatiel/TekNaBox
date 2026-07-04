@@ -4,122 +4,142 @@
 
 /* ── Theme tokens ──────────────────────────────────────────────────────────── */
 :root {
-  /* Dark (default) */
-  --bg-base:     #0a0c0f;
-  --bg-surface:  #0f1318;
-  --bg-elevated: #151a21;
-  --bg-border:   #1e2630;
+  /* Dark (default) — "Signal" direction */
+  --bg-base:     #0c0f16;
+  --bg-surface:  #121722;
+  --bg-elevated: #19202d;
+  --bg-border:   #252e3e;
 
-  --card-bg:     #0f1318;
-  --card-el-bg:  #151a21;
-  --input-bg:    #0a0c0f;
-  --input-text:  #e2e8f0;
-  --input-ph:    #475569;
-  --input-focus: #0d7490;
-  --btn-ghost-border: #1e2630;
+  --card-bg:     #121722;
+  --card-el-bg:  #19202d;
+  --input-bg:    #0c0f16;
+  --input-text:  #e6eaf2;
+  --input-ph:    #5b6675;
+  --input-focus: #6d5ef5;
+  --btn-ghost-border: #252e3e;
   --btn-ghost-color:  #94a3b8;
-  --label-color: #64748b;
+  --label-color: #6b7688;
 
-  /* Colour palette tokens */
-  --cyan-dim:     rgba(6, 182, 212, 0.10);
-  --cyan-muted:   #164e63;
-  --cyan-DEFAULT: #06b6d4;
-  --cyan-bright:  #67e8f9;
+  /* Brand — separate from status colour */
+  --primary-dim:     rgba(226, 232, 240, 0.10);
+  --primary-muted:   #313a4a;
+  --primary-DEFAULT: #e7ebf3;
+  --primary-bright:  #ffffff;
+  --primary-fg:      #10151f;
 
-  --green-dim:     rgba(34, 197, 94, 0.10);
+  /* Colour palette tokens (status/semantic only) */
+  --cyan-dim:     rgba(34, 197, 220, 0.12);
+  --cyan-muted:   #155e6b;
+  --cyan-DEFAULT: #22c5dc;
+  --cyan-bright:  #7fe6f2;
+
+  --green-dim:     rgba(34, 197, 94, 0.12);
   --green-muted:   #14532d;
-  --green-DEFAULT: #22c55e;
+  --green-DEFAULT: #2fbf6b;
   --green-bright:  #86efac;
 
-  --amber-dim:     rgba(234, 179, 8, 0.10);
+  --amber-dim:     rgba(234, 179, 8, 0.12);
   --amber-muted:   #713f12;
   --amber-DEFAULT: #eab308;
   --amber-bright:  #fde047;
 
-  --red-dim:     rgba(239, 68, 68, 0.10);
+  --red-dim:     rgba(239, 68, 68, 0.12);
   --red-muted:   #7f1d1d;
-  --red-DEFAULT: #ef4444;
+  --red-DEFAULT: #f0555f;
   --red-bright:  #fca5a5;
 
   /* Severity badge tokens */
-  --sev-critical-bg:     #450a0a;
-  --sev-critical-color:  #ef4444;
-  --sev-critical-border: #7f1d1d;
+  --sev-critical-bg:     #2a0d12;
+  --sev-critical-color:  #f0555f;
+  --sev-critical-border: #5c1a22;
 
-  --sev-high-bg:     #431407;
-  --sev-high-color:  #f97316;
-  --sev-high-border: #7c2d12;
+  --sev-high-bg:     #2a1408;
+  --sev-high-color:  #fb923c;
+  --sev-high-border: #5c2f12;
 
-  --sev-medium-bg:     #422006;
+  --sev-medium-bg:     #231a05;
   --sev-medium-color:  #eab308;
-  --sev-medium-border: #713f12;
+  --sev-medium-border: #514011;
 
-  --sev-low-bg:     #0c1a1f;
-  --sev-low-color:  #06b6d4;
-  --sev-low-border: #164e63;
+  --sev-low-bg:     #07222a;
+  --sev-low-color:  #22c5dc;
+  --sev-low-border: #14424e;
 
-  --sev-info-bg:     #111827;
-  --sev-info-color:  #6b7280;
-  --sev-info-border: #1f2937;
+  --sev-info-bg:     #161c26;
+  --sev-info-color:  #8b97a9;
+  --sev-info-border: #252e3e;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow:    0 4px 20px -6px rgba(0, 0, 0, 0.55);
 }
 
 html.light {
-  --bg-base:     #f1f5f9;
+  --bg-base:     #f4f5f8;
   --bg-surface:  #ffffff;
-  --bg-elevated: #f8fafc;
-  --bg-border:   #e2e8f0;
+  --bg-elevated: #f7f8fb;
+  --bg-border:   #e4e7ee;
 
   --card-bg:     #ffffff;
-  --card-el-bg:  #f8fafc;
-  --input-bg:    #f8fafc;
-  --input-text:  #0f172a;
-  --input-ph:    #94a3b8;
-  --input-focus: #0891b2;
-  --btn-ghost-border: #cbd5e1;
-  --btn-ghost-color:  #475569;
-  --label-color: #64748b;
+  --card-el-bg:  #f7f8fb;
+  --input-bg:    #f7f8fb;
+  --input-text:  #141925;
+  --input-ph:    #98a2b3;
+  --input-focus: #5b4ee0;
+  --btn-ghost-border: #d3d9e3;
+  --btn-ghost-color:  #4a5568;
+  --label-color: #7a8598;
+
+  /* Brand — separate from status colour (light) */
+  --primary-dim:     #eef1f5;
+  --primary-muted:   #d3d9e3;
+  --primary-DEFAULT: #1f2733;
+  --primary-bright:  #10151f;
+  --primary-fg:      #ffffff;
 
   /* Colour palette tokens (light) */
-  --cyan-dim:     #cffafe;
-  --cyan-muted:   #0891b2;
-  --cyan-DEFAULT: #0891b2;
-  --cyan-bright:  #0e7490;
+  --cyan-dim:     #d7f6fb;
+  --cyan-muted:   #0e7d90;
+  --cyan-DEFAULT: #0e93a8;
+  --cyan-bright:  #0b6b7c;
 
-  --green-dim:     #dcfce7;
+  --green-dim:     #dcf5e6;
   --green-muted:   #166534;
-  --green-DEFAULT: #16a34a;
+  --green-DEFAULT: #1a9d54;
   --green-bright:  #15803d;
 
-  --amber-dim:     #fef9c3;
+  --amber-dim:     #fbf1c9;
   --amber-muted:   #a16207;
-  --amber-DEFAULT: #d97706;
+  --amber-DEFAULT: #c07d06;
   --amber-bright:  #92400e;
 
-  --red-dim:     #fee2e2;
+  --red-dim:     #fde4e6;
   --red-muted:   #b91c1c;
-  --red-DEFAULT: #dc2626;
+  --red-DEFAULT: #d93a45;
   --red-bright:  #991b1b;
 
   /* Severity badge tokens (light) */
-  --sev-critical-bg:     #fee2e2;
-  --sev-critical-color:  #dc2626;
-  --sev-critical-border: #fca5a5;
+  --sev-critical-bg:     #fde4e6;
+  --sev-critical-color:  #d02531;
+  --sev-critical-border: #f5b5ba;
 
-  --sev-high-bg:     #ffedd5;
-  --sev-high-color:  #c2410c;
-  --sev-high-border: #fdba74;
+  --sev-high-bg:     #fdead2;
+  --sev-high-color:  #c2560c;
+  --sev-high-border: #f6c893;
 
-  --sev-medium-bg:     #fef9c3;
-  --sev-medium-color:  #a16207;
-  --sev-medium-border: #fde047;
+  --sev-medium-bg:     #faf0c8;
+  --sev-medium-color:  #9a6a06;
+  --sev-medium-border: #ecd884;
 
-  --sev-low-bg:     #cffafe;
-  --sev-low-color:  #0e7490;
-  --sev-low-border: #a5f3fc;
+  --sev-low-bg:     #d7f2f7;
+  --sev-low-color:  #0e7d90;
+  --sev-low-border: #a7e0ea;
 
-  --sev-info-bg:     #f3f4f6;
-  --sev-info-color:  #4b5563;
-  --sev-info-border: #d1d5db;
+  --sev-info-bg:     #eef1f5;
+  --sev-info-color:  #5f6b7c;
+  --sev-info-border: #dde2ea;
+
+  --shadow-sm: 0 1px 2px rgba(20, 25, 40, 0.06);
+  --shadow:    0 8px 24px -12px rgba(20, 25, 40, 0.16);
 }
 
 /* ── Base ──────────────────────────────────────────────────────────────────── */
@@ -129,7 +149,7 @@ html.light {
   body {
     @apply bg-bg-base text-slate-300 font-body antialiased;
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(6,182,212,0.04) 0%, transparent 60%);
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(231,235,243,0.05) 0%, transparent 60%);
   }
 
   ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -137,7 +157,7 @@ html.light {
   ::-webkit-scrollbar-thumb { @apply bg-bg-border rounded-full; }
   ::-webkit-scrollbar-thumb:hover { @apply bg-slate-600; }
 
-  ::selection { @apply bg-cyan-dim text-cyan-bright; }
+  ::selection { @apply bg-primary-dim text-primary-bright; }
 }
 
 /* ── Light mode — Tailwind text utility overrides ──────────────────────────── */
@@ -163,7 +183,7 @@ html.light .text-gray-500 { color: #475569; }
 /* Gradient override for light */
 html.light body {
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(6,182,212,0.06) 0%, transparent 60%);
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(31,39,51,0.04) 0%, transparent 60%);
 }
 
 /* ── Components ────────────────────────────────────────────────────────────── */
@@ -179,8 +199,8 @@ html.light body {
     border-radius: 0.5rem;
   }
   .btn-primary {
-    background-color: #06b6d4;
-    color: #0a0c0f;
+    background-color: var(--primary-DEFAULT);
+    color: var(--primary-fg);
     font-family: 'Syne', sans-serif;
     font-weight: 600;
     font-size: 0.875rem;
@@ -190,7 +210,7 @@ html.light body {
     cursor: pointer;
     border: none;
   }
-  .btn-primary:hover { background-color: #67e8f9; }
+  .btn-primary:hover { background-color: var(--primary-bright); }
   .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .btn-ghost {
@@ -226,7 +246,7 @@ html.light body {
     padding: 0.5rem 0.75rem;
     transition: border-color 0.15s;
     width: 100%;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'IBM Plex Mono', monospace;
     outline: none;
   }
   .input::placeholder { color: var(--input-ph); }
@@ -252,7 +272,7 @@ html.light body {
   }
   .tag {
     font-size: 0.75rem;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'IBM Plex Mono', monospace;
     padding: 0.125rem 0.5rem;
     border-radius: 0.25rem;
     border-width: 1px;

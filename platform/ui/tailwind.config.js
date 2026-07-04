@@ -6,7 +6,7 @@ export default {
       fontFamily: {
         display: ['"Syne"', 'sans-serif'],
         body: ['"DM Sans"', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'monospace'],
+        mono: ['"IBM Plex Mono"', 'monospace'],
       },
       colors: {
         bg: {
@@ -14,6 +14,13 @@ export default {
           surface: 'var(--bg-surface)',
           elevated:'var(--bg-elevated)',
           border:  'var(--bg-border)',
+        },
+        primary: {
+          dim:    'var(--primary-dim)',
+          muted:  'var(--primary-muted)',
+          DEFAULT:'var(--primary-DEFAULT)',
+          bright: 'var(--primary-bright)',
+          fg:     'var(--primary-fg)',
         },
         cyan: {
           dim:    'var(--cyan-dim)',

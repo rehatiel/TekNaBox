@@ -62,7 +62,7 @@ function ChannelMap({ networks }) {
         ctx.lineTo(x, yBase)
         ctx.stroke()
         ctx.fillStyle = '#475569'
-        ctx.font = '10px JetBrains Mono'
+        ctx.font = '10px IBM Plex Mono'
         ctx.textAlign = 'center'
         ctx.fillText(ch, x, yBase + 14)
       })
@@ -123,7 +123,7 @@ function ChannelMap({ networks }) {
         ctx.lineTo(x, yBase)
         ctx.stroke()
         ctx.fillStyle = '#334155'
-        ctx.font = '9px JetBrains Mono'
+        ctx.font = '9px IBM Plex Mono'
         ctx.textAlign = 'center'
         ctx.fillText(ch, x, yBase + 14)
       })

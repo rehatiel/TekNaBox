@@ -26,7 +26,7 @@ export function StatusBadge({ status }) {
 
 // ── Spinner ───────────────────────────────────────────────────────────────────
 export function Spinner({ className = 'w-5 h-5' }) {
-  return <Loader2 className={`animate-spin text-cyan-DEFAULT ${className}`} />
+  return <Loader2 className={`animate-spin text-primary-DEFAULT ${className}`} />
 }
 
 // ── Empty State ───────────────────────────────────────────────────────────────
@@ -92,8 +92,9 @@ export function PageHeader({ title, subtitle, actions }) {
 }
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
-export function StatCard({ label, value, sub, accent = 'cyan', icon: Icon }) {
+export function StatCard({ label, value, sub, accent = 'primary', icon: Icon }) {
   const accents = {
+    primary: 'text-primary-DEFAULT border-primary-dim',
     cyan:  'text-cyan-DEFAULT border-cyan-dim',
     green: 'text-green-DEFAULT border-green-dim',
     amber: 'text-amber-DEFAULT border-amber-dim',
@@ -147,7 +148,7 @@ export function Table({ headers, children, empty, sortKey, sortDir, onSort }) {
                   onClick={sortable ? () => onSort(key) : undefined}
                   className={[
                     'text-left py-2 px-3 text-xs font-display font-500 uppercase tracking-widest',
-                    active ? 'text-cyan-DEFAULT' : 'text-slate-500',
+                    active ? 'text-primary-DEFAULT' : 'text-slate-500',
                     sortable ? 'cursor-pointer select-none hover:text-slate-300' : '',
                   ].join(' ')}
                 >

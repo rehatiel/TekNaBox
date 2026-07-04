@@ -110,6 +110,43 @@ Styling: Tailwind CSS. Charts: Recharts. Icons: Lucide React.
 
 The agent enrolls once using a secret, receives a JWT, then maintains a persistent WSS connection.
 
+## Knowledge Graph (RAG)
+
+A graphify knowledge graph of this codebase lives in `graphify-out/`.
+
+**Before answering questions about architecture, data flow, or which files to edit — query the graph first:**
+
+```bash
+# Interactive HTML graph (open in browser)
+graphify-out/graph.html
+
+# Obsidian vault (1,241 notes, open graphify-out/obsidian/ as a vault)
+graphify-out/obsidian/
+
+# Query the graph via graphify CLI
+/graphify query "<your question>"
+
+# Trace a path between two concepts
+/graphify path "Device" "ConnectionManager"
+
+# Explain a specific node
+/graphify explain "AuditAction"
+```
+
+**Key god nodes** (highest connectivity — changes here have wide blast radius):
+- `get()` — API client fetch wrapper, touches all 18+ communities
+- `Device` — central ORM model, 94 edges
+- `AuditAction` — audit log enum, 89 edges
+- `DeviceStatus` — status enum, 88 edges
+- `OperatorRole` — RBAC enum, 84 edges
+
+**Graph stats:** 1,186 nodes · 3,583 edges · 55 communities · 5.2x token reduction vs reading files directly
+
+**To rebuild after significant code changes:**
+```bash
+/graphify . --update
+```
+
 ## Key Constraints
 
 - **Do NOT modify `display.py`** or any display-related agent code.

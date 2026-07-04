@@ -172,7 +172,7 @@ function ScanCard({ scanDef, device, onStart, running }) {
 
       {open && !running && (
         <div style={{ padding: '0 14px 14px', borderTop: '1px solid #1a2030' }}>
-          <p style={{ fontSize: 11, color: 'var(--label-color)', margin: '10px 0 12px', fontFamily: 'JetBrains Mono, monospace' }}>
+          <p style={{ fontSize: 11, color: 'var(--label-color)', margin: '10px 0 12px', fontFamily: 'IBM Plex Mono, monospace' }}>
             {scanDef.desc}
           </p>
           {scanDef.fields.map(f => (
@@ -187,7 +187,7 @@ function ScanCard({ scanDef, device, onStart, running }) {
                   style={{
                     width: '100%', background: 'var(--bg-base)', border: '1px solid var(--bg-border)',
                     borderRadius: 6, color: 'var(--input-text)', padding: '6px 8px', fontSize: 12,
-                    fontFamily: 'JetBrains Mono, monospace', outline: 'none',
+                    fontFamily: 'IBM Plex Mono, monospace', outline: 'none',
                   }}
                 >
                   {f.options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -202,7 +202,7 @@ function ScanCard({ scanDef, device, onStart, running }) {
                     width: '100%', boxSizing: 'border-box',
                     background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
                     color: 'var(--input-text)', padding: '6px 8px', fontSize: 12,
-                    fontFamily: 'JetBrains Mono, monospace', outline: 'none',
+                    fontFamily: 'IBM Plex Mono, monospace', outline: 'none',
                   }}
                 />
               )}
@@ -254,7 +254,7 @@ function ScanResult({ record }) {
             <span style={{ color: 'var(--label-color)', fontWeight: 400 }}> · {record.port_range}</span>
           )}
         </span>
-        <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>
+        <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'IBM Plex Mono, monospace' }}>
           {fmt(record.scanned_at)}
         </span>
         {failed && <AlertTriangle size={11} color="#ef4444" style={{ marginLeft: 4 }} />}
@@ -264,7 +264,7 @@ function ScanResult({ record }) {
       {expanded && (
         <div style={{ borderTop: '1px solid #1a2030', padding: '10px 12px' }}>
           {failed ? (
-            <div style={{ fontSize: 12, color: 'var(--sev-critical-color)', fontFamily: 'JetBrains Mono, monospace' }}>
+            <div style={{ fontSize: 12, color: 'var(--sev-critical-color)', fontFamily: 'IBM Plex Mono, monospace' }}>
               {record.error || 'Scan failed'}
             </div>
           ) : (
@@ -287,13 +287,13 @@ function ScanResultBody({ record, color }) {
           Scanned {r.ports_scanned ?? '?'} ports · {ports.length} open
         </div>
         {ports.length === 0 ? (
-          <span style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>No open ports found</span>
+          <span style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'IBM Plex Mono, monospace' }}>No open ports found</span>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
             {ports.map(p => (
               <span key={p} style={{
                 background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 4,
-                padding: '2px 7px', fontSize: 11, fontFamily: 'JetBrains Mono, monospace',
+                padding: '2px 7px', fontSize: 11, fontFamily: 'IBM Plex Mono, monospace',
                 color: 'var(--input-text)',
               }}>
                 <span style={{ color, fontWeight: 600 }}>{p}</span>
@@ -313,7 +313,7 @@ function ScanResultBody({ record, color }) {
         {results.length === 0 ? (
           <span style={{ fontSize: 12, color: 'var(--label-color)' }}>No banners captured</span>
         ) : results.map((item, i) => (
-          <div key={i} style={{ marginBottom: 10, fontFamily: 'JetBrains Mono, monospace' }}>
+          <div key={i} style={{ marginBottom: 10, fontFamily: 'IBM Plex Mono, monospace' }}>
             <div style={{ fontSize: 11, color: color, marginBottom: 3 }}>
               {item.host}:{item.port}
               {COMMON_PORTS[item.port] && <span style={{ color: 'var(--label-color)' }}> ({COMMON_PORTS[item.port]})</span>}
@@ -336,7 +336,7 @@ function ScanResultBody({ record, color }) {
     return (
       <div>
         {certs.map((c, i) => (
-          <div key={i} style={{ marginBottom: 12, fontFamily: 'JetBrains Mono, monospace' }}>
+          <div key={i} style={{ marginBottom: 12, fontFamily: 'IBM Plex Mono, monospace' }}>
             <div style={{ fontSize: 11, color: color, marginBottom: 6 }}>{c.host}:{c.port}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '3px 12px', fontSize: 11 }}>
               {[
@@ -361,7 +361,7 @@ function ScanResultBody({ record, color }) {
   if (record.scan_type === 'smb_enum') {
     const hosts = r.results || []
     return (
-      <div style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+      <div style={{ fontFamily: 'IBM Plex Mono, monospace' }}>
         {hosts.map((h, i) => (
           <div key={i} style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 11, color: color, marginBottom: 4 }}>{h.host}</div>
@@ -444,7 +444,7 @@ function NotesEditor({ mac, initialNotes, onSaved }) {
           width: '100%', boxSizing: 'border-box',
           background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 8,
           color: 'var(--input-text)', padding: '10px 12px', fontSize: 12,
-          fontFamily: 'JetBrains Mono, monospace', outline: 'none', resize: 'vertical',
+          fontFamily: 'IBM Plex Mono, monospace', outline: 'none', resize: 'vertical',
           lineHeight: 1.6,
         }}
         onFocus={e => e.target.style.borderColor = '#1e3a4a'}
@@ -662,10 +662,10 @@ export default function NetworkDeviceDetailPage() {
           <div style={{ flex: 1, minWidth: 240 }}>
             <InlineLabelEdit device={device} onSave={saveLabel} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13, color: '#06b6d4', fontFamily: 'JetBrains Mono, monospace' }}>{device.ip || '—'}</span>
-              <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>{device.mac}</span>
+              <span style={{ fontSize: 13, color: '#06b6d4', fontFamily: 'IBM Plex Mono, monospace' }}>{device.ip || '—'}</span>
+              <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'IBM Plex Mono, monospace' }}>{device.mac}</span>
               {device.hostname && (
-                <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>{device.hostname}</span>
+                <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'IBM Plex Mono, monospace' }}>{device.hostname}</span>
               )}
             </div>
             {device.vendor && (
@@ -707,7 +707,7 @@ export default function NetworkDeviceDetailPage() {
           ].map(([k, v]) => (
             <div key={k}>
               <div style={{ fontSize: 10, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{k}</div>
-              <div style={{ fontSize: 13, color: 'var(--input-text)', fontFamily: 'JetBrains Mono, monospace' }}>{String(v)}</div>
+              <div style={{ fontSize: 13, color: 'var(--input-text)', fontFamily: 'IBM Plex Mono, monospace' }}>{String(v)}</div>
             </div>
           ))}
         </div>
@@ -787,7 +787,7 @@ export default function NetworkDeviceDetailPage() {
             )}
           </div>
 
-          <div style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'IBM Plex Mono, monospace', marginBottom: 14 }}>
             Target: <span style={{ color: '#06b6d4' }}>{device.ip || '—'}</span>
           </div>
 

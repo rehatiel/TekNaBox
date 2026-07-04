@@ -46,6 +46,7 @@ desktop.ini
 
 # ── Claude Code ───────────────────────────────────────────────────────────────
 .claude/
+CLAUDE.md
 
 # ── Docker volumes / local data ───────────────────────────────────────────────
 pgdata/
@@ -61,3 +62,9 @@ platform/ui/.env.local
 .pytest_cache/
 htmlcov/
 .coverage
+
+# ── graphify knowledge graph ──────────────────────────────────────────────────
+graphify-out/
+.graphify_*.json
+.graphify_*.txt
+.graphify_python

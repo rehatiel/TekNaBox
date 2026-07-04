@@ -168,7 +168,7 @@ export default function Dashboard() {
             <h2 className="font-display font-600 text-slate-200 text-sm flex items-center gap-2">
               <Monitor className="w-4 h-4 text-slate-600" /> Devices
             </h2>
-            <Link to="/devices" className="text-xs text-cyan-muted hover:text-cyan-DEFAULT flex items-center gap-1">
+            <Link to="/devices" className="text-xs text-primary-muted hover:text-primary-bright flex items-center gap-1">
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
@@ -176,7 +176,7 @@ export default function Dashboard() {
             {recentDevices.map(d => (
                 <TR key={d.id}>
                   <TD>
-                    <Link to={`/devices/${d.id}`} className="hover:text-cyan-DEFAULT transition-colors">
+                    <Link to={`/devices/${d.id}`} className="hover:text-primary-bright transition-colors">
                       <span className="font-mono text-xs">{d.name}</span>
                     </Link>
                   </TD>
@@ -223,7 +223,7 @@ export default function Dashboard() {
             <h2 className="font-display font-600 text-slate-200 text-sm flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-slate-600" /> Recent Findings
             </h2>
-            <Link to="/findings" className="text-xs text-cyan-muted hover:text-cyan-DEFAULT flex items-center gap-1">
+            <Link to="/findings" className="text-xs text-primary-muted hover:text-primary-bright flex items-center gap-1">
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
@@ -244,7 +244,7 @@ export default function Dashboard() {
                     </span>
                   </TD>
                   <TD>
-                    <Link to={`/findings?device=${f.device_id}`} className="text-xs text-cyan-muted hover:text-cyan-DEFAULT">
+                    <Link to={`/findings?device=${f.device_id}`} className="text-xs text-primary-muted hover:text-primary-bright">
                       →
                     </Link>
                   </TD>
@@ -264,7 +264,7 @@ export default function Dashboard() {
             <h2 className="font-display font-600 text-slate-200 text-sm flex items-center gap-2">
               <CheckSquare className="w-4 h-4 text-slate-600" /> Recent Tasks
             </h2>
-            <Link to="/tasks" className="text-xs text-cyan-muted hover:text-cyan-DEFAULT flex items-center gap-1">
+            <Link to="/tasks" className="text-xs text-primary-muted hover:text-primary-bright flex items-center gap-1">
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
@@ -273,7 +273,7 @@ export default function Dashboard() {
               <TR key={t.id}>
                 <TD><span className="text-xs font-mono">{t.task_type}</span></TD>
                 <TD>
-                  <Link to={`/devices/${t.device_id}`} className="text-xs font-mono text-slate-500 hover:text-cyan-DEFAULT transition-colors">
+                  <Link to={`/devices/${t.device_id}`} className="text-xs font-mono text-slate-500 hover:text-primary-bright transition-colors">
                     {devices.find(d => d.id === t.device_id)?.name || t.device_id?.slice(0, 8)}
                   </Link>
                 </TD>
@@ -297,7 +297,7 @@ export default function Dashboard() {
             <h2 className="font-display font-600 text-slate-200 text-sm flex items-center gap-2">
               <Clock className="w-4 h-4 text-slate-600" /> Recent Activity
             </h2>
-            <Link to="/audit" className="text-xs text-cyan-muted hover:text-cyan-DEFAULT flex items-center gap-1">
+            <Link to="/audit" className="text-xs text-primary-muted hover:text-primary-bright flex items-center gap-1">
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </div>

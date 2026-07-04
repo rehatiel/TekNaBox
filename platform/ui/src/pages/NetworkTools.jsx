@@ -197,7 +197,7 @@ function LldpResult({ result }) {
             <span style={{ fontWeight: 600, color: 'var(--input-text)', fontSize: 14 }}>
               {nb.system_name || nb.device_id || 'Unknown neighbor'}
             </span>
-            <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>{nb.protocol}</span>
+            <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'IBM Plex Mono, monospace' }}>{nb.protocol}</span>
           </div>
           {nb.port_id && <KV k="Port" v={nb.port_id} />}
           {nb.port_description && <KV k="Port desc" v={nb.port_description} />}
@@ -264,7 +264,7 @@ function WolResult({ result }) {
 function VlanHopResult({ result }) {
   if (result.error) {
     return (
-      <div style={{ background: '#1a0a0a', border: '1px solid #7f1d1d', borderRadius: 8, padding: '10px 14px', color: '#ef4444', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}>
+      <div style={{ background: '#1a0a0a', border: '1px solid #7f1d1d', borderRadius: 8, padding: '10px 14px', color: '#ef4444', fontSize: 13, fontFamily: 'IBM Plex Mono, monospace' }}>
         {result.error}
       </div>
     )
@@ -299,7 +299,7 @@ function VlanHopResult({ result }) {
             <FindingCard f={doubleTagFindings[0]} />
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'IBM Plex Mono, monospace' }}>
                 <thead>
                   <tr>
                     {['Target VLAN', 'Result', 'ARP Replies', 'Notes'].map(c => (
@@ -369,7 +369,7 @@ function FindingCard({ f }) {
         )}
       </div>
       {f.error
-        ? <div style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.error}</div>
+        ? <div style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'IBM Plex Mono, monospace' }}>{f.error}</div>
         : <div style={{ fontSize: 12, color: 'var(--btn-ghost-color)', lineHeight: 1.6 }}>{f.description}</div>
       }
       {f.test === 'dtp_negotiation' && f.replies?.length > 0 && (
@@ -392,7 +392,7 @@ function SummaryRow({ items }) {
           background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
           padding: '5px 12px', display: 'flex', gap: 8, alignItems: 'baseline',
         }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: item.color || 'var(--input-text)', fontFamily: 'JetBrains Mono, monospace' }}>{item.value}</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: item.color || 'var(--input-text)', fontFamily: 'IBM Plex Mono, monospace' }}>{item.value}</span>
           <span style={{ fontSize: 11, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.label}</span>
         </div>
       ))}
@@ -403,7 +403,7 @@ function SummaryRow({ items }) {
 function HostTable({ columns, rows }) {
   return (
     <div style={{ overflowX: 'auto', marginTop: 8 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'IBM Plex Mono, monospace' }}>
         <thead>
           <tr>
             {columns.map(c => (
@@ -428,8 +428,8 @@ function HostTable({ columns, rows }) {
 function KV({ k, v }) {
   return (
     <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-      <span style={{ color: 'var(--label-color)', minWidth: 100, fontFamily: 'JetBrains Mono, monospace' }}>{k}</span>
-      <span style={{ color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace', wordBreak: 'break-all' }}>{v}</span>
+      <span style={{ color: 'var(--label-color)', minWidth: 100, fontFamily: 'IBM Plex Mono, monospace' }}>{k}</span>
+      <span style={{ color: 'var(--btn-ghost-color)', fontFamily: 'IBM Plex Mono, monospace', wordBreak: 'break-all' }}>{v}</span>
     </div>
   )
 }
@@ -442,25 +442,25 @@ function PayloadForm({ task, payload, onChange, interfaces }) {
       {task.fields.map(f => {
         if (f.type === 'hostlist') return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'IBM Plex Mono, monospace' }}>{f.label}</span>
             <textarea
               rows={3}
               placeholder={f.placeholder}
               value={Array.isArray(payload[f.key]) ? payload[f.key].join('\n') : payload[f.key] || ''}
               onChange={e => onChange({ ...payload, [f.key]: e.target.value.split('\n').map(s => s.trim()).filter(Boolean) })}
-              style={{ background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--input-text)', padding: '8px 10px', fontSize: 12, fontFamily: 'JetBrains Mono, monospace', resize: 'vertical' }}
+              style={{ background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--input-text)', padding: '8px 10px', fontSize: 12, fontFamily: 'IBM Plex Mono, monospace', resize: 'vertical' }}
             />
           </label>
         )
 
         if (f.type === 'interface') return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'IBM Plex Mono, monospace' }}>{f.label}</span>
             {interfaces && interfaces.length > 0 ? (
               <select
                 value={payload[f.key] ?? ''}
                 onChange={e => onChange({ ...payload, [f.key]: e.target.value })}
-                style={{ background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--input-text)', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer' }}
+                style={{ background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--input-text)', padding: '7px 10px', fontSize: 13, fontFamily: 'IBM Plex Mono, monospace', outline: 'none', cursor: 'pointer' }}
               >
                 {interfaces.map(({ name, ip }) => (
                 <option key={name} value={name}>{name}{ip ? ` (${ip})` : ''}</option>
@@ -472,7 +472,7 @@ function PayloadForm({ task, payload, onChange, interfaces }) {
                 placeholder={f.placeholder || 'eth0'}
                 value={payload[f.key] ?? ''}
                 onChange={e => onChange({ ...payload, [f.key]: e.target.value })}
-                style={{ background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--input-text)', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}
+                style={{ background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--input-text)', padding: '7px 10px', fontSize: 13, fontFamily: 'IBM Plex Mono, monospace' }}
               />
             )}
           </label>
@@ -480,14 +480,14 @@ function PayloadForm({ task, payload, onChange, interfaces }) {
 
         return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'IBM Plex Mono, monospace' }}>{f.label}</span>
             <input
               type={f.type === 'number' ? 'number' : 'text'}
               min={f.min} max={f.max} step={f.min < 1 ? 0.1 : 1}
               placeholder={f.placeholder || ''}
               value={payload[f.key] ?? ''}
               onChange={e => onChange({ ...payload, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value })}
-              style={{ background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--input-text)', padding: '7px 10px', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}
+              style={{ background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6, color: 'var(--input-text)', padding: '7px 10px', fontSize: 13, fontFamily: 'IBM Plex Mono, monospace' }}
             />
           </label>
         )
@@ -590,7 +590,7 @@ function TaskPanel({ task, deviceId, interfaces }) {
             {running ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Running…</> : <><Play size={14} /> Run</>}
           </button>
           {error && (
-            <div style={{ background: '#1a0a0a', border: '1px solid #7f1d1d', borderRadius: 8, padding: '10px 14px', color: '#ef4444', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}>{error}</div>
+            <div style={{ background: '#1a0a0a', border: '1px solid #7f1d1d', borderRadius: 8, padding: '10px 14px', color: '#ef4444', fontSize: 13, fontFamily: 'IBM Plex Mono, monospace' }}>{error}</div>
           )}
           {result && <ResultRenderer result={result} />}
         </div>
@@ -673,7 +673,7 @@ export default function NetworkToolsPage() {
           style={{
             flex: 1, background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
             color: deviceId ? 'var(--input-text)' : 'var(--label-color)', padding: '7px 10px', fontSize: 13,
-            fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer',
+            fontFamily: 'IBM Plex Mono, monospace', outline: 'none', cursor: 'pointer',
           }}
         >
           <option value="">— select active device —</option>

@@ -267,7 +267,7 @@ export default function Devices() {
             {visible.map(d => (
               <TR key={d.id}>
                 <TD>
-                  <Link to={`/devices/${d.id}`} className="flex items-center gap-2 hover:text-cyan-DEFAULT transition-colors">
+                  <Link to={`/devices/${d.id}`} className="flex items-center gap-2 hover:text-primary-bright transition-colors">
                     <Monitor className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                     <span className="font-mono text-xs">{d.name}</span>
                   </Link>
@@ -300,7 +300,7 @@ export default function Devices() {
                     {d.status !== 'revoked' && (
                       <button
                         onClick={() => setShowTask(d)}
-                        className="p-1.5 text-slate-600 hover:text-cyan-DEFAULT hover:bg-cyan-dim rounded transition-colors"
+                        className="p-1.5 text-slate-600 hover:text-primary-bright hover:bg-primary-dim rounded transition-colors"
                         title="Issue task"
                       >
                         <Terminal className="w-3.5 h-3.5" />

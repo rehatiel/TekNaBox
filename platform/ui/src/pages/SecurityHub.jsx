@@ -124,7 +124,7 @@ function PayloadForm({ task, payload, onChange }) {
       {task.fields.map(f => {
         if (f.type === 'hostlist') return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--btn-ghost-color)', fontFamily: 'IBM Plex Mono, monospace' }}>{f.label}</span>
             <textarea
               rows={4}
               placeholder={f.placeholder}
@@ -133,14 +133,14 @@ function PayloadForm({ task, payload, onChange }) {
               style={{
                 background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
                 color: 'var(--input-text)', padding: '8px 10px', fontSize: 12,
-                fontFamily: 'JetBrains Mono, monospace', resize: 'vertical',
+                fontFamily: 'IBM Plex Mono, monospace', resize: 'vertical',
               }}
             />
           </label>
         )
         if (f.type === 'multicheck') return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'IBM Plex Mono, monospace' }}>{f.label}</span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {f.options.map(opt => {
                 const active = (payload[f.key] || []).includes(opt)
@@ -150,7 +150,7 @@ function PayloadForm({ task, payload, onChange }) {
                     onChange({ ...payload, [f.key]: active ? cur.filter(x => x !== opt) : [...cur, opt] })
                   }} style={{
                     fontSize: 11, padding: '3px 10px', borderRadius: 20, cursor: 'pointer',
-                    fontFamily: 'JetBrains Mono, monospace', transition: 'all 0.15s',
+                    fontFamily: 'IBM Plex Mono, monospace', transition: 'all 0.15s',
                     background: active ? 'var(--cyan-muted)' : 'var(--bg-elevated)',
                     border: `1px solid ${active ? 'var(--cyan-DEFAULT)' : 'var(--bg-border)'}`,
                     color: active ? 'var(--cyan-DEFAULT)' : 'var(--label-color)',
@@ -162,7 +162,7 @@ function PayloadForm({ task, payload, onChange }) {
         )
         return (
           <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--label-color)', fontFamily: 'IBM Plex Mono, monospace' }}>{f.label}</span>
             <input
               type={f.type === 'password' ? 'password' : f.type === 'number' ? 'number' : 'text'}
               placeholder={f.placeholder || ''}
@@ -175,7 +175,7 @@ function PayloadForm({ task, payload, onChange }) {
               style={{
                 background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
                 color: 'var(--input-text)', padding: '7px 10px', fontSize: 13,
-                fontFamily: 'JetBrains Mono, monospace', outline: 'none',
+                fontFamily: 'IBM Plex Mono, monospace', outline: 'none',
               }}
             />
           </label>
@@ -198,7 +198,7 @@ function FindingCard({ f }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
         <SevBadge sev={f.severity} />
         <span style={{ flex: 1, fontSize: 13, color: 'var(--input-text)', fontWeight: 500 }}>{f.title}</span>
-        {f.host && <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'JetBrains Mono, monospace' }}>{f.host}</span>}
+        {f.host && <span style={{ fontSize: 11, color: 'var(--label-color)', fontFamily: 'IBM Plex Mono, monospace' }}>{f.host}</span>}
         {open ? <ChevronDown size={14} color="var(--btn-ghost-color)" /> : <ChevronRight size={14} color="var(--btn-ghost-color)" />}
       </div>
       {open && (
@@ -315,7 +315,7 @@ function TaskPanel({ task, deviceId }) {
           </button>
 
           {error && (
-            <div style={{ background: 'var(--sev-critical-bg)', border: '1px solid var(--sev-critical-border)', borderRadius: 8, padding: '10px 14px', color: 'var(--sev-critical-color)', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}>
+            <div style={{ background: 'var(--sev-critical-bg)', border: '1px solid var(--sev-critical-border)', borderRadius: 8, padding: '10px 14px', color: 'var(--sev-critical-color)', fontSize: 13, fontFamily: 'IBM Plex Mono, monospace' }}>
               {error}
             </div>
           )}
@@ -362,7 +362,7 @@ function Stat({ label, value, highlight }) {
       background: 'var(--bg-elevated)', border: '1px solid var(--bg-border)', borderRadius: 6,
       padding: '6px 12px', display: 'flex', gap: 8, alignItems: 'baseline',
     }}>
-      <span style={{ fontSize: 18, fontWeight: 700, color: highlight ? 'var(--sev-high-color)' : 'var(--input-text)', fontFamily: 'JetBrains Mono, monospace' }}>{value}</span>
+      <span style={{ fontSize: 18, fontWeight: 700, color: highlight ? 'var(--sev-high-color)' : 'var(--input-text)', fontFamily: 'IBM Plex Mono, monospace' }}>{value}</span>
       <span style={{ fontSize: 11, color: 'var(--label-color)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
     </div>
   )
@@ -374,13 +374,13 @@ function RawResult({ result }) {
     <div>
       <button onClick={() => setShow(s => !s)} style={{
         fontSize: 11, color: 'var(--label-color)', background: 'none', border: 'none',
-        cursor: 'pointer', padding: 0, textDecoration: 'underline', fontFamily: 'JetBrains Mono, monospace',
+        cursor: 'pointer', padding: 0, textDecoration: 'underline', fontFamily: 'IBM Plex Mono, monospace',
       }}>{show ? 'hide raw' : 'show raw json'}</button>
       {show && (
         <pre style={{
           fontSize: 11, color: 'var(--label-color)', background: 'var(--bg-base)', border: '1px solid var(--bg-border)',
           borderRadius: 6, padding: 12, overflow: 'auto', maxHeight: 300, marginTop: 8,
-          fontFamily: 'JetBrains Mono, monospace',
+          fontFamily: 'IBM Plex Mono, monospace',
         }}>{JSON.stringify(result, null, 2)}</pre>
       )}
     </div>
@@ -443,7 +443,7 @@ export default function SecurityHubPage() {
             style={{
               background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
               color: filterCustomer ? 'var(--input-text)' : 'var(--label-color)', padding: '7px 10px', fontSize: 13,
-              fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer', minWidth: 160,
+              fontFamily: 'IBM Plex Mono, monospace', outline: 'none', cursor: 'pointer', minWidth: 160,
             }}
           >
             <option value="">All customers</option>
@@ -456,7 +456,7 @@ export default function SecurityHubPage() {
           style={{
             flex: 1, background: 'var(--bg-base)', border: '1px solid var(--bg-border)', borderRadius: 6,
             color: deviceId ? 'var(--input-text)' : 'var(--label-color)', padding: '7px 10px', fontSize: 13,
-            fontFamily: 'JetBrains Mono, monospace', outline: 'none', cursor: 'pointer',
+            fontFamily: 'IBM Plex Mono, monospace', outline: 'none', cursor: 'pointer',
           }}
         >
           <option value="">— select active device —</option>
@@ -466,7 +466,7 @@ export default function SecurityHubPage() {
         </select>
         {device && (
           <span style={{
-            fontSize: 11, padding: '3px 8px', borderRadius: 20, fontFamily: 'JetBrains Mono, monospace',
+            fontSize: 11, padding: '3px 8px', borderRadius: 20, fontFamily: 'IBM Plex Mono, monospace',
             background: 'var(--green-dim)', border: '1px solid var(--green-muted)', color: 'var(--green-DEFAULT)',
           }}>ONLINE</span>
         )}
