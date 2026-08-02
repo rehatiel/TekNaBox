@@ -1,5 +1,12 @@
 # TekNaBox — MSP Remote Management Platform
 
+[![License](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](platform/server)
+[![FastAPI](https://img.shields.io/badge/FastAPI-async-009688?logo=fastapi&logoColor=white)](platform/server)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](platform/ui)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](platform/docker-compose.yml)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](platform/docker-compose.yml)
+
 A self-hosted Remote Monitoring & Management (RMM) platform built for Managed Service Providers. Run network diagnostics, security audits, and real-time terminal sessions on remote Linux devices — all from a single browser-based dashboard.
 
 ---
